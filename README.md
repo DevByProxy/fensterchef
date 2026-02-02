@@ -2,11 +2,24 @@
 
 Fensterchef is a lightweight, lightning-fast window manager for Linux, focused on manual tiling.
 
-🔹 Manual Tiling: Arrange your windows exactly how you want — no rigid grids or enforced layouts. </br>
-🔹 Lightweight & Fast: Minimal overhead ensures smooth performance, even on low-end hardware. </br>
-🔹 Highly Customizable: Configure Fensterchef easily with a simple configuration file. </br>
-🔹 Keyboard-Centric: Navigate your workspace effortlessly with intuitive shortcuts. </br>
-🔹 **Modern C++**: Recently modernized to C++17 with Object-Oriented Programming principles. </br>
+🔹 **Manual Tiling**: Arrange your windows exactly how you want — no rigid grids or enforced layouts. </br>
+🔹 **Lightweight & Fast**: Minimal overhead ensures smooth performance, even on low-end hardware. </br>
+🔹 **Highly Customizable**: Configure Fensterchef easily with a simple configuration file. </br>
+🔹 **Keyboard-Centric**: Navigate your workspace effortlessly with intuitive shortcuts. </br>
+🔹 **Modern C++ Architecture**: Completely restructured with true OOP design and modern C++17. </br>
+
+## Recent Architectural Overhaul 🎉
+
+Fensterchef has been **completely restructured** with a modern C++ architecture featuring:
+- **Modular Design**: 7 clearly defined modules (core, window, layout, display, input, x11, utils)
+- **True OOP**: Proper encapsulation with private data and public interfaces
+- **No Globals**: All state managed through Application class
+- **Smart Pointers**: Automatic memory management with `std::unique_ptr`
+- **Type Safety**: Strong typing with `enum class` and `constexpr`
+- **Clean Code**: Single responsibility, dependency injection, RAII throughout
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for details on the new design.
+See [RESTRUCTURING_SUMMARY.md](RESTRUCTURING_SUMMARY.md) for before/after comparison.
 
 ## Gallery
 
@@ -36,18 +49,53 @@ Alternatively put it this into the `~/.xinitrc`.
 
 *How to get fensterchef to run exactly varies on your environment.*
 
+## Architecture
+
+Fensterchef now features a **modern, modular C++ architecture**:
+
+```
+src/
+├── core/          # Main application coordination
+├── window/        # Window management (Window, WindowManager)
+├── layout/        # Tiling layout (Frame, TilingManager)
+├── display/       # Monitor and rendering (Monitor, DisplayManager, Renderer)
+├── input/         # Input handling (InputHandler, KeyMap, Actions)
+├── x11/           # X11 integration (X11Connection, X11Atoms)
+└── utils/         # Utilities (Logger, Geometry, StringUtils)
+```
+
+**Key Features:**
+- **True OOP**: Private data members, public interfaces, proper encapsulation
+- **No Global Variables**: All state owned by Application class
+- **Smart Pointers**: Automatic memory management with `std::unique_ptr`
+- **Modern C++17**: RAII, STL containers, strong typing with `enum class`
+- **Modular Design**: Clear separation of concerns with single responsibility
+
+For detailed architecture documentation, see:
+- [ARCHITECTURE.md](ARCHITECTURE.md) - Detailed design documentation
+- [RESTRUCTURING_SUMMARY.md](RESTRUCTURING_SUMMARY.md) - Before/after comparison
+
 ## Development
 
-### Modern C++ Architecture
+### Building from Source
 
-Fensterchef has been modernized to use C++17 with Object-Oriented Programming principles. Key improvements include:
+```sh
+git clone https://github.com/DevByProxy/fensterchef.git
+cd fensterchef
+make
+sudo make install
+```
 
-- **RAII**: Automatic resource management through constructors/destructors
-- **Type Safety**: Strong typing with `enum class`, `nullptr`, and `constexpr`
-- **OOP**: Core components (Window, Frame, Monitor) are now proper C++ classes
-- **Memory Safety**: Replaced manual memory management with C++ `new`/`delete`
+### Code Organization
 
-For detailed information about the modernization, see [MODERNIZATION.md](MODERNIZATION.md).
+The codebase is organized into modules, each with a specific purpose:
+- **Core Module**: Application lifecycle and coordination
+- **Window Module**: Window lifecycle and management
+- **Layout Module**: Tiling layout algorithms
+- **Display Module**: Monitor management and rendering
+- **Input Module**: Event handling and key bindings
+- **X11 Module**: X11 protocol integration
+- **Utils Module**: Common utilities and types
 
 ## Bugs
 
