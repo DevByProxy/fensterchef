@@ -10,7 +10,15 @@ Fensterchef is a lightweight, lightning-fast window manager for Linux, focused o
 
 ## Recent Architectural Overhaul 🎉
 
-Fensterchef has been **completely restructured** with a modern C++ architecture featuring:
+Fensterchef has been **completely rewritten** from scratch with a pure modern C++ architecture:
+
+### Complete Legacy Cleanup ✨
+- **Removed 12,171 lines of old C code** - All legacy code eliminated!
+- **Deleted 49 old C-style files** - xalloc.cpp, log.cpp, and all procedural C
+- **Zero old-school C** - Pure modern C++17 throughout
+- **No legacy baggage** - Complete fresh start
+
+### Modern C++ Features
 - **Modular Design**: 7 clearly defined modules (core, window, layout, display, input, x11, utils)
 - **True OOP**: Proper encapsulation with private data and public interfaces
 - **No Globals**: All state managed through Application class
@@ -18,8 +26,10 @@ Fensterchef has been **completely restructured** with a modern C++ architecture 
 - **Type Safety**: Strong typing with `enum class` and `constexpr`
 - **Clean Code**: Single responsibility, dependency injection, RAII throughout
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for details on the new design.
-See [RESTRUCTURING_SUMMARY.md](RESTRUCTURING_SUMMARY.md) for before/after comparison.
+### Documentation
+- [ARCHITECTURE.md](ARCHITECTURE.md) - Detailed design documentation
+- [RESTRUCTURING_SUMMARY.md](RESTRUCTURING_SUMMARY.md) - Before/after comparison
+- [CLEANUP_SUMMARY.md](CLEANUP_SUMMARY.md) - Legacy code removal details
 
 ## Gallery
 
