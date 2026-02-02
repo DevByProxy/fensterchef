@@ -10,7 +10,7 @@ static xcb_key_symbols_t *key_symbols;
 int initialize_keymap(void)
 {
     key_symbols = xcb_key_symbols_alloc(connection);
-    if (key_symbols == NULL) {
+    if (key_symbols == nullptr) {
         return ERROR;
     }
     return OK;

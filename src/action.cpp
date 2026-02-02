@@ -1,5 +1,5 @@
 #include <unistd.h>
-#include <string.h> // strcmp()
+#include <cstring> // strcmp()
 #include <sys/wait.h> // wait()
 
 #include "action.h"
@@ -21,7 +21,7 @@ static const struct {
     /* data type of the action parameter */
     parser_data_type_t data_type;
 } action_information[ACTION_MAX] = {
-    [ACTION_NULL] = { NULL, 0 },
+    [ACTION_NULL] = { nullptr, 0 },
 
     [ACTION_NONE] = { "NONE", PARSER_DATA_TYPE_VOID },
     [ACTION_RELOAD_CONFIGURATION] = { "RELOAD-CONFIGURATION", PARSER_DATA_TYPE_VOID },
@@ -127,7 +127,7 @@ static void run_shell(const char *shell)
                 exit(EXIT_FAILURE);
             }
             /* this code is executed in the grandchild process */
-            (void) execl("/bin/sh", "sh", "-c", shell, (char*) NULL);
+            (void) execl("/bin/sh", "sh", "-c", shell, (char*) nullptr);
             /* this point is only reached if `execl()` failed */
             exit(EXIT_FAILURE);
         } else {
@@ -136,7 +136,7 @@ static void run_shell(const char *shell)
         }
     } else {
         /* wait until the child process exits */
-        (void) waitpid(child_process_id, NULL, 0);
+        (void) waitpid(child_process_id, nullptr, 0);
     }
 }
 
@@ -148,8 +148,8 @@ static char *run_shell_and_get_output(const char *shell)
     size_t length, capacity;
 
     process = popen(shell, "r");
-    if (process == NULL) {
-        return NULL;
+    if (process == nullptr) {
+        return nullptr;
     }
 
     capacity = 128;
@@ -175,16 +175,16 @@ static void resize_frame_or_window_by(Window *window, int32_t left, int32_t top,
 {
     Frame *frame;
 
-    if (window == NULL) {
+    if (window == nullptr) {
         frame = focus_frame;
-        if (frame == NULL) {
+        if (frame == nullptr) {
             return;
         }
     } else {
         frame = get_frame_of_window(window);
     }
 
-    if (frame != NULL) {
+    if (frame != nullptr) {
         bump_frame_edge(frame, FRAME_EDGE_LEFT, left);
         bump_frame_edge(frame, FRAME_EDGE_TOP, top);
         bump_frame_edge(frame, FRAME_EDGE_RIGHT, right);
@@ -212,10 +212,10 @@ static void resize_frame_or_window_by(Window *window, int32_t left, int32_t top,
  */
 void set_showable_tiling_window(bool previous)
 {
-    Window *start, *next, *valid_window = NULL;
+    Window *start, *next, *valid_window = nullptr;
 
-    if (focus_frame->window == NULL) {
-        start = NULL;
+    if (focus_frame->window == nullptr) {
+        start = nullptr;
         next = first_window;
     } else {
         start = focus_frame->window;
@@ -225,7 +225,7 @@ void set_showable_tiling_window(bool previous)
     /* go through all windows in a cyclic manner */
     for (;; next = next->next) {
         /* wrap around */
-        if (start != NULL && next == NULL) {
+        if (start != nullptr && next == nullptr) {
             next = first_window;
         }
 
@@ -245,7 +245,7 @@ void set_showable_tiling_window(bool previous)
         }
     }
 
-    if (valid_window == NULL) {
+    if (valid_window == nullptr) {
         set_notification((utf8_t*) "No other window",
                 focus_frame->x + focus_frame->width / 2,
                 focus_frame->y + focus_frame->height / 2);
@@ -260,12 +260,12 @@ void toggle_focus(void)
 {
     Window *window;
 
-    if (focus_window == NULL ||
+    if (focus_window == nullptr ||
             focus_window->state.mode == WINDOW_MODE_TILING) {
         /* the the first window on the Z stack that is visible */
-        for (window = top_window; window != NULL; window = window->below) {
+        for (window = top_window; window != nullptr; window = window->below) {
             if (window->state.mode == WINDOW_MODE_TILING) {
-                window = NULL;
+                window = nullptr;
                 break;
             }
             if (window->state.is_visible) {
@@ -273,7 +273,7 @@ void toggle_focus(void)
             }
         }
 
-        if (window != NULL) {
+        if (window != nullptr) {
             set_focus_window(window);
         }
     } else {
@@ -288,14 +288,14 @@ static void move_to_frame(Frame *from, Frame *to, Monitor *monitor,
     if (do_exchange) {
         Frame *const saved_frame = stash_frame_later(from);
         replace_frame(from, to);
-        if (saved_frame != NULL) {
+        if (saved_frame != nullptr) {
             replace_frame(to, saved_frame);
             free(saved_frame);
         }
-    } else if (monitor != NULL) {
+    } else if (monitor != nullptr) {
         Window *const window = get_window_covering_monitor(monitor);
         /* focus the window covering the monitor */
-        if (window != NULL) {
+        if (window != nullptr) {
             set_focus_window(window);
             focus_frame = to;
             return;
@@ -309,32 +309,32 @@ static void move_to_frame(Frame *from, Frame *to, Monitor *monitor,
 static void move_to_above_frame(Frame *relative, bool do_exchange)
 {
     Frame *frame;
-    Monitor *monitor = NULL;
+    Monitor *monitor = nullptr;
 
     /* if a group of frames is given, get a frame inside if the split direction
      * is aligned with the movement
      */
-    if (!do_exchange && relative->left != NULL &&
+    if (!do_exchange && relative->left != nullptr &&
             relative->split_direction == FRAME_SPLIT_VERTICALLY) {
         frame = relative->left;
     } else {
         frame = get_above_frame(relative);
-        if (frame == NULL) {
+        if (frame == nullptr) {
             monitor = get_monitor_from_rectangle(
                     relative->x, relative->y - 1, 1, 1);
-            if (monitor != NULL) {
+            if (monitor != nullptr) {
                 frame = monitor->frame;
             }
         }
     }
 
-    if (frame == NULL) {
+    if (frame == nullptr) {
         return;
     }
 
     const int x = relative->x + relative->width / 2;
     /* move into the most bottom frame */
-    while (frame->left != NULL) {
+    while (frame->left != nullptr) {
         if (frame->split_direction == FRAME_SPLIT_HORIZONTALLY) {
             if (frame->left->x + (int32_t) frame->left->width >= x) {
                 frame = frame->left;
@@ -353,32 +353,32 @@ static void move_to_above_frame(Frame *relative, bool do_exchange)
 static void move_to_left_frame(Frame *relative, bool do_exchange)
 {
     Frame *frame;
-    Monitor *monitor = NULL;
+    Monitor *monitor = nullptr;
 
     /* if a group of frames is given, get a frame inside if the split direction
      * is aligned with the movement
      */
-    if (!do_exchange && relative->left != NULL &&
+    if (!do_exchange && relative->left != nullptr &&
             relative->split_direction == FRAME_SPLIT_HORIZONTALLY) {
         frame = relative->left;
     } else {
         frame = get_left_frame(relative);
-        if (frame == NULL) {
+        if (frame == nullptr) {
             monitor = get_monitor_from_rectangle(
                     relative->x - 1, relative->y, 1, 1);
-            if (monitor != NULL) {
+            if (monitor != nullptr) {
                 frame = monitor->frame;
             }
         }
     }
 
-    if (frame == NULL) {
+    if (frame == nullptr) {
         return;
     }
 
     const int y = relative->y + relative->height / 2;
     /* move into the most right frame */
-    while (frame->left != NULL) {
+    while (frame->left != nullptr) {
         if (frame->split_direction == FRAME_SPLIT_VERTICALLY) {
             if (frame->left->y + (int32_t) frame->left->height >= y) {
                 frame = frame->left;
@@ -397,32 +397,32 @@ static void move_to_left_frame(Frame *relative, bool do_exchange)
 static void move_to_right_frame(Frame *relative, bool do_exchange)
 {
     Frame *frame;
-    Monitor *monitor = NULL;
+    Monitor *monitor = nullptr;
 
     /* if a group of frames is given, get a frame inside if the split direction
      * is aligned with the movement
      */
-    if (!do_exchange && relative->left != NULL &&
+    if (!do_exchange && relative->left != nullptr &&
             relative->split_direction == FRAME_SPLIT_HORIZONTALLY) {
         frame = relative->right;
     } else {
         frame = get_right_frame(relative);
-        if (frame == NULL) {
+        if (frame == nullptr) {
             monitor = get_monitor_from_rectangle(
                     relative->x + relative->width, relative->y, 1, 1);
-            if (monitor != NULL) {
+            if (monitor != nullptr) {
                 frame = monitor->frame;
             }
         }
     }
 
-    if (frame == NULL) {
+    if (frame == nullptr) {
         return;
     }
 
     const int y = relative->y + relative->height / 2;
     /* move into the most left frame */
-    while (frame->left != NULL) {
+    while (frame->left != nullptr) {
         if (frame->split_direction == FRAME_SPLIT_VERTICALLY) {
             if (frame->left->y + (int32_t) frame->left->height >= y) {
                 frame = frame->left;
@@ -441,32 +441,32 @@ static void move_to_right_frame(Frame *relative, bool do_exchange)
 static void move_to_below_frame(Frame *relative, bool do_exchange)
 {
     Frame *frame;
-    Monitor *monitor = NULL;
+    Monitor *monitor = nullptr;
 
     /* if a group of frames is given, get a frame inside if the split direction
      * is aligned with the movement
      */
-    if (!do_exchange && relative->left != NULL &&
+    if (!do_exchange && relative->left != nullptr &&
             focus_frame->split_direction == FRAME_SPLIT_VERTICALLY) {
         frame = focus_frame->right;
     } else {
         frame = get_below_frame(relative);
-        if (frame == NULL) {
+        if (frame == nullptr) {
             monitor = get_monitor_from_rectangle(
                     relative->x, relative->y + relative->height, 1, 1);
-            if (monitor != NULL) {
+            if (monitor != nullptr) {
                 frame = monitor->frame;
             }
         }
     }
 
-    if (frame == NULL) {
+    if (frame == nullptr) {
         return;
     }
 
     const int x = relative->x + relative->width / 2;
     /* move into the most top frame */
-    while (frame->left != NULL) {
+    while (frame->left != nullptr) {
         if (frame->split_direction == FRAME_SPLIT_HORIZONTALLY) {
             if (frame->left->x + (int32_t) frame->left->width >= x) {
                 frame = frame->left;
@@ -489,7 +489,7 @@ void do_action(const Action *action, Window *window)
     switch (action->code) {
     /* invalid action value */
     case ACTION_NULL:
-        LOG_ERROR("tried to do NULL action");
+        LOG_ERROR("tried to do nullptr action");
         break;
 
     /* do nothing */
@@ -507,7 +507,7 @@ void do_action(const Action *action, Window *window)
 
     /* move the focus to the parent frame */
     case ACTION_PARENT_FRAME:
-        if (focus_frame->parent != NULL) {
+        if (focus_frame->parent != nullptr) {
             focus_frame = focus_frame->parent;
         }
         set_focus_frame(focus_frame);
@@ -515,7 +515,7 @@ void do_action(const Action *action, Window *window)
 
     /* move the focus to the child frame */
     case ACTION_CHILD_FRAME:
-        if (focus_frame->left != NULL) {
+        if (focus_frame->left != nullptr) {
             focus_frame = focus_frame->left;
         }
         set_focus_frame(focus_frame);
@@ -528,7 +528,7 @@ void do_action(const Action *action, Window *window)
 
     /* closes the currently active window */
     case ACTION_CLOSE_WINDOW:
-        if (window == NULL) {
+        if (window == nullptr) {
             break;
         }
         close_window(window);
@@ -536,7 +536,7 @@ void do_action(const Action *action, Window *window)
 
     /* hide the currently active window */
     case ACTION_MINIMIZE_WINDOW:
-        if (window == NULL) {
+        if (window == nullptr) {
             break;
         }
         hide_window(window);
@@ -545,14 +545,14 @@ void do_action(const Action *action, Window *window)
     /* focus a window */
     case ACTION_FOCUS_WINDOW:
         set_focus_window_with_frame(window);
-        if (window != NULL) {
+        if (window != nullptr) {
             update_window_layer(window);
         }
         break;
 
     /* start moving a window with the mouse */
     case ACTION_INITIATE_MOVE:
-        if (window == NULL) {
+        if (window == nullptr) {
             break;
         }
         initiate_window_move_resize(window, _NET_WM_MOVERESIZE_MOVE, -1, -1);
@@ -560,7 +560,7 @@ void do_action(const Action *action, Window *window)
 
     /* start resizing a window with the mouse */
     case ACTION_INITIATE_RESIZE:
-        if (window == NULL) {
+        if (window == nullptr) {
             break;
         }
         initiate_window_move_resize(window, _NET_WM_MOVERESIZE_AUTO, -1, -1);
@@ -584,7 +584,7 @@ void do_action(const Action *action, Window *window)
 
     /* changes a non tiling window to a tiling window and vise versa */
     case ACTION_TOGGLE_TILING:
-        if (window == NULL) {
+        if (window == nullptr) {
             break;
         }
         set_window_mode(window,
@@ -594,7 +594,7 @@ void do_action(const Action *action, Window *window)
 
     /* toggles the fullscreen state of the currently focused window */
     case ACTION_TOGGLE_FULLSCREEN:
-        if (window != NULL) {
+        if (window != nullptr) {
             set_window_mode(window,
                     window->state.mode == WINDOW_MODE_FULLSCREEN ?
                     window->state.previous_mode : WINDOW_MODE_FULLSCREEN);

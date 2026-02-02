@@ -102,7 +102,7 @@ void merge_with_default_button_bindings(struct configuration *configuration)
             configuration->mouse.modifiers;
         button = find_configured_button(configuration, modifiers,
                 default_bindings[i].button_index, default_bindings[i].flags);
-        if (button != NULL) {
+        if (button != nullptr) {
             continue;
         }
         new_count++;
@@ -122,7 +122,7 @@ void merge_with_default_button_bindings(struct configuration *configuration)
             configuration->mouse.modifiers;
         button = find_configured_button(configuration, modifiers,
                 default_bindings[i].button_index, default_bindings[i].flags);
-        if (button != NULL) {
+        if (button != nullptr) {
             continue;
         }
         next_button->flags = default_bindings[i].flags;
@@ -265,7 +265,7 @@ void merge_with_default_key_bindings(struct configuration *configuration)
             configuration->keyboard.modifiers;
         key = find_configured_key(configuration, modifiers,
                 default_bindings[i].key_symbol, default_bindings[i].flags);
-        if (key != NULL) {
+        if (key != nullptr) {
             continue;
         }
         new_count++;
@@ -285,7 +285,7 @@ void merge_with_default_key_bindings(struct configuration *configuration)
             configuration->keyboard.modifiers;
         key = find_configured_key(configuration, modifiers,
                 default_bindings[i].key_symbol, default_bindings[i].flags);
-        if (key != NULL) {
+        if (key != nullptr) {
             continue;
         }
         next_key->flags = default_bindings[i].flags;

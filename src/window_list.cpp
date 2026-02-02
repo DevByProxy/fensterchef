@@ -1,7 +1,7 @@
 #include <ctype.h>
-#include <inttypes.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cinttypes>
+#include <cstdlib>
+#include <cstring>
 
 #include <X11/keysym.h>
 #include <xcb/xcb_keysyms.h>
@@ -38,7 +38,7 @@ int initialize_window_list(void)
                 screen->root, -1, -1, 1, 1, 0,
                 XCB_WINDOW_CLASS_INPUT_OUTPUT, XCB_COPY_FROM_PARENT,
                 XCB_CW_OVERRIDE_REDIRECT | XCB_CW_EVENT_MASK, general_values));
-    if (error != NULL) {
+    if (error != nullptr) {
         LOG_ERROR("could not create window list window: %E\n", error);
         free(error);
         return ERROR;
@@ -91,7 +91,7 @@ static void render_window_list(void)
     measure.ascent = 12;
     measure.descent = -4;
     max_width = 0;
-    for (Window *window = first_window; window != NULL; window = window->next) {
+    for (Window *window = first_window; window != nullptr; window = window->next) {
         if (!is_valid_for_display(window)) {
             continue;
         }
@@ -150,7 +150,7 @@ static void render_window_list(void)
     rectangle.width = max_width + configuration.notification.padding / 2;
     rectangle.height = height_per_item;
     index = 0;
-    for (Window *window = first_window; window != NULL; window = window->next) {
+    for (Window *window = first_window; window != nullptr; window = window->next) {
         if (!is_valid_for_display(window)) {
             continue;
         }
@@ -206,11 +206,11 @@ static Window *get_valid_window_before(Window *last_valid, Window *start,
 }
 
 /* Get the window after @start. @last_valid is the fallback value. This does not
- * have a third parameter because it would just be NULL anyway for all calls.
+ * have a third parameter because it would just be nullptr anyway for all calls.
  */
 static Window *get_valid_window_after(Window *last_valid, Window *start)
 {
-    while (start != NULL) {
+    while (start != nullptr) {
         if (is_valid_for_display(start)) {
             last_valid = start;
             break;
@@ -238,7 +238,7 @@ static void handle_key_press(xcb_key_press_event_t *event)
     /* confirm selection */
     case XK_y:
     case XK_Return:
-        if (window_list.selected != NULL &&
+        if (window_list.selected != nullptr &&
                 window_list.selected != focus_window) {
             /* put floating windows on the top */
             update_window_layer(window_list.selected);
@@ -253,13 +253,13 @@ static void handle_key_press(xcb_key_press_event_t *event)
 
     /* go to the first item */
     case XK_Home:
-        window_list.selected = get_valid_window_after(NULL, first_window);
+        window_list.selected = get_valid_window_after(nullptr, first_window);
         break;
 
     /* go to the last item */
     case XK_End:
         window_list.selected = get_valid_window_before(window_list.selected,
-                first_window, NULL);
+                first_window, nullptr);
         break;
 
     /* go to the previous item */
@@ -328,7 +328,7 @@ static void handle_destroy_notify(xcb_destroy_notify_event_t *event)
     /* if the currently selected window is destroyed, select a different one */
     if (window == window_list.selected) {
         window_list.selected = get_valid_window_before(
-                get_valid_window_after(NULL, window_list.selected->next),
+                get_valid_window_after(nullptr, window_list.selected->next),
                 first_window, window_list.selected);
     }
 }
@@ -375,10 +375,10 @@ int show_window_list(void)
     }
 
     /* get the initially selected window */
-    if (focus_window != NULL) {
+    if (focus_window != nullptr) {
         selected = focus_window;
     } else {
-        for (selected = first_window; selected != NULL;
+        for (selected = first_window; selected != nullptr;
                 selected = selected->next) {
             if (is_valid_for_display(selected)) {
                 break;
@@ -386,7 +386,7 @@ int show_window_list(void)
         }
     }
 
-    if (selected == NULL) {
+    if (selected == nullptr) {
         set_notification((utf8_t*) "No managed windows",
                 focus_frame->x + focus_frame->width / 2,
                 focus_frame->y + focus_frame->height / 2);

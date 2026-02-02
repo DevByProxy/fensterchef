@@ -1,5 +1,5 @@
-#include <inttypes.h>
-#include <string.h>
+#include <cinttypes>
+#include <cstring>
 
 #include <xcb/xcb_renderutil.h>
 
@@ -50,7 +50,7 @@ void initialize_monitors(void)
     version_cookie = xcb_randr_query_version(connection,
             XCB_RANDR_MAJOR_VERSION, XCB_RANDR_MINOR_VERSION);
     version = xcb_randr_query_version_reply(connection, version_cookie, &error);
-    if (error != NULL) {
+    if (error != nullptr) {
         LOG_ERROR("could not query randr version: %E\n", error);
         free(error);
     } else {
@@ -97,11 +97,11 @@ static inline bool get_overlap(int32_t x1, int32_t y1, uint32_t width1,
 Monitor *get_monitor_from_rectangle(int32_t x, int32_t y,
         uint32_t width, uint32_t height)
 {
-    Monitor *best_monitor = NULL;
+    Monitor *best_monitor = nullptr;
     uint64_t best_area = 0, area;
     Size overlap;
 
-    for (Monitor *monitor = first_monitor; monitor != NULL;
+    for (Monitor *monitor = first_monitor; monitor != nullptr;
             monitor = monitor->next) {
         if (!get_overlap(x, y, width, height, monitor->x, monitor->y,
                     monitor->width, monitor->height, &overlap)) {
@@ -126,33 +126,33 @@ Monitor *get_monitor_from_rectangle_or_primary(int32_t x, int32_t y,
     Monitor *monitor;
 
     monitor = get_monitor_from_rectangle(x, y, width, height);
-    return monitor == NULL ? first_monitor : monitor;
+    return monitor == nullptr ? first_monitor : monitor;
 }
 
 /* Get a monitor with given name from the monitor linked list. */
 static Monitor *get_monitor_by_name(Monitor *monitor,
         const char *name, int name_len)
 {
-    for (; monitor != NULL; monitor = monitor->next) {
+    for (; monitor != nullptr; monitor = monitor->next) {
         if (strncmp(monitor->name, name, name_len) == 0 &&
                 monitor->name[name_len] == '\0') {
             return monitor;
         }
     }
-    return NULL;
+    return nullptr;
 }
 
 /* Get a window covering given monitor. */
 Window *get_window_covering_monitor(Monitor *monitor)
 {
     uint64_t monitor_area;
-    Window *best_window = NULL;
+    Window *best_window = nullptr;
     uint64_t best_area = 0, area;
     Size overlap;
 
     monitor_area = (uint64_t) monitor->width * monitor->height;
     /* go through the windows from bottom to top */
-    for (Window *window = bottom_window; window != NULL;
+    for (Window *window = bottom_window; window != nullptr;
             window = window->above) {
         /* only consider floating and fullscreen windows */
         if (window->state.mode != WINDOW_MODE_FLOATING &&
@@ -191,7 +191,7 @@ Monitor *query_monitors(void)
     int output_count;
 
     Monitor *monitor;
-    Monitor *first_monitor = NULL, *last_monitor, *primary_monitor = NULL;
+    Monitor *first_monitor = nullptr, *last_monitor, *primary_monitor = nullptr;
 
     xcb_randr_get_output_info_cookie_t output_cookie;
     xcb_randr_get_output_info_reply_t *output;
@@ -203,7 +203,7 @@ Monitor *query_monitors(void)
     xcb_randr_get_crtc_info_reply_t *crtc;
 
     if (!randr_enabled) {
-        return NULL;
+        return nullptr;
     }
 
     /* get cookies for later */
@@ -214,8 +214,8 @@ Monitor *query_monitors(void)
 
     /* get the primary monitor */
     primary = xcb_randr_get_output_primary_reply(connection, primary_cookie,
-            NULL);
-    if (primary == NULL) {
+            nullptr);
+    if (primary == nullptr) {
         primary_output = XCB_NONE;
     } else {
         primary_output = primary->output;
@@ -225,10 +225,10 @@ Monitor *query_monitors(void)
     /* get the screen resources for querying the screen outputs */
     resources = xcb_randr_get_screen_resources_current_reply(connection,
             resources_cookie, &error);
-    if (error != NULL) {
+    if (error != nullptr) {
         LOG_ERROR("could not get screen resources: %E\n", error);
         free(error);
-        return NULL;
+        return nullptr;
     }
 
     /* get the outputs (monitors) */
@@ -242,7 +242,7 @@ Monitor *query_monitors(void)
                resources->timestamp);
         output = xcb_randr_get_output_info_reply(connection, output_cookie,
                 &error);
-        if (error != NULL) {
+        if (error != nullptr) {
             LOG_ERROR("unable to get output info of %d: %E\n", i, error);
             free(error);
             continue;
@@ -265,8 +265,8 @@ Monitor *query_monitors(void)
                 resources->timestamp);
 
         crtc = xcb_randr_get_crtc_info_reply(connection, crtc_cookie, &error);
-        if (crtc == NULL) {
-            LOG_ERROR("output %.*s gave a NULL crtc: %E\n", name_length, name,
+        if (crtc == nullptr) {
+            LOG_ERROR("output %.*s gave a nullptr crtc: %E\n", name_length, name,
                     error);
             free(error);
             free(output);
@@ -279,7 +279,7 @@ Monitor *query_monitors(void)
         monitor = create_monitor(name, name_length);
 
         /* add the monitor to the linked list */
-        if (first_monitor == NULL) {
+        if (first_monitor == nullptr) {
             first_monitor = monitor;
             last_monitor = first_monitor;
         } else {
@@ -301,7 +301,7 @@ Monitor *query_monitors(void)
     }
 
     /* add the primary monitor to the start of the list */
-    if (primary_monitor != NULL) {
+    if (primary_monitor != nullptr) {
         primary_monitor->next = first_monitor;
         first_monitor = primary_monitor;
     }
@@ -318,34 +318,34 @@ Monitor *query_monitors(void)
  */
 void merge_monitors(Monitor *monitors)
 {
-    if (monitors == NULL) {
+    if (monitors == nullptr) {
         monitors = create_monitor("default", UINT32_MAX);
         monitors->width = screen->width_in_pixels;
         monitors->height = screen->height_in_pixels;
     }
 
     /* copy frames from the old monitors to the new ones with same name */
-    for (Monitor *monitor = monitors; monitor != NULL;
+    for (Monitor *monitor = monitors; monitor != nullptr;
             monitor = monitor->next) {
         Monitor *const other = get_monitor_by_name(first_monitor,
                 monitor->name, strlen(monitor->name));
-        if (other == NULL) {
+        if (other == nullptr) {
             continue;
         }
 
         monitor->frame = other->frame;
-        other->frame = NULL;
+        other->frame = nullptr;
     }
 
     /* drop the frames that are no longer valid or add them again */
-    for (Monitor *monitor = first_monitor, *next_monitor; monitor != NULL;
+    for (Monitor *monitor = first_monitor, *next_monitor; monitor != nullptr;
             monitor = next_monitor) {
         next_monitor = monitor->next;
-        if (monitor->frame != NULL) {
+        if (monitor->frame != nullptr) {
             /* make sure no broken frame focus remains */
-            if (focus_frame != NULL &&
+            if (focus_frame != nullptr &&
                     get_root_frame(focus_frame) == monitor->frame) {
-                focus_frame = NULL;
+                focus_frame = nullptr;
             }
 
             /* stash away the frame */
@@ -359,9 +359,9 @@ void merge_monitors(Monitor *monitors)
     first_monitor = monitors;
 
     /* initialize the remaining monitors' frames */
-    for (Monitor *monitor = monitors; monitor != NULL;
+    for (Monitor *monitor = monitors; monitor != nullptr;
             monitor = monitor->next) {
-        if (monitor->frame == NULL) {
+        if (monitor->frame == nullptr) {
             if (configuration.tiling.auto_fill_void) {
                 monitor->frame = pop_stashed_frame();
             } else {
@@ -376,7 +376,7 @@ void merge_monitors(Monitor *monitors)
     }
 
     /* if the focus frame was abonded, focus a different one */
-    if (focus_frame == NULL) {
+    if (focus_frame == nullptr) {
         set_focus_frame(first_monitor->frame);
     }
 }

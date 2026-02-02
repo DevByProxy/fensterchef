@@ -1,6 +1,6 @@
-#include <inttypes.h>
+#include <cinttypes>
 #include <stdarg.h>
-#include <string.h>
+#include <cstring>
 #include <time.h>
 
 #include <xcb/randr.h>
@@ -124,7 +124,7 @@ static const char *atom_to_string(xcb_atom_t atom)
         }
     }
 
-    return NULL;
+    return nullptr;
 }
 
 static const char *notify_detail_to_string(xcb_notify_detail_t detail)
@@ -147,7 +147,7 @@ static const char *notify_detail_to_string(xcb_notify_detail_t detail)
     case XCB_NOTIFY_DETAIL_NONE:
         return "none";
     default:
-        return NULL;
+        return nullptr;
     }
 }
 
@@ -163,7 +163,7 @@ static const char *notify_mode_to_string(xcb_notify_mode_t mode)
     case XCB_NOTIFY_MODE_WHILE_GRABBED:
         return "while grabbed";
     default:
-        return NULL;
+        return nullptr;
     }
 }
 
@@ -187,7 +187,7 @@ static const char *button_to_string(xcb_button_t button)
     case /* XCB_BUTTON_INDEX_7 */ 7:
         return "scroll right";
     default:
-        return NULL;
+        return nullptr;
     }
 }
 
@@ -219,7 +219,7 @@ static const char *direction_to_string(wm_move_resize_direction_t direction)
     case _NET_WM_MOVERESIZE_CANCEL:
         return "cancel";
     default:
-        return NULL;
+        return nullptr;
     }
 }
 
@@ -249,7 +249,7 @@ static const char *gravity_to_string(xcb_gravity_t gravity)
     case XCB_GRAVITY_STATIC:
         return "static";
     default:
-        return NULL;
+        return nullptr;
     }
 }
 
@@ -305,7 +305,7 @@ static void log_button(xcb_button_t button)
     const char *string;
 
     string = button_to_string(button);
-    if (string == NULL) {
+    if (string == nullptr) {
         fprintf(stderr, COLOR(CYAN) "X%u" CLEAR_COLOR, button - 7);
     } else {
         fprintf(stderr, COLOR(CYAN) "%s" CLEAR_COLOR, string);
@@ -332,7 +332,7 @@ static void log_gravity(xcb_gravity_t gravity)
     const char *string;
 
     string = gravity_to_string(gravity);
-    if (string == NULL) {
+    if (string == nullptr) {
         fprintf(stderr, COLOR(GREEN) "%u" CLEAR_COLOR, gravity);
     } else {
         fprintf(stderr, COLOR(CYAN) "%s" CLEAR_COLOR, string);
@@ -344,7 +344,7 @@ static void log_direction(wm_move_resize_direction_t direction)
     const char *string;
 
     string = direction_to_string(direction);
-    if (string == NULL) {
+    if (string == nullptr) {
         fprintf(stderr, COLOR(GREEN) "%u" CLEAR_COLOR, direction);
     } else {
         fprintf(stderr, COLOR(CYAN) "%s" CLEAR_COLOR, string);
@@ -386,7 +386,7 @@ static void log_xcb_window(xcb_window_t xcb_window)
     } else if (xcb_window == screen->root) {
         fputs("<root>", stderr);
     } else {
-        for (Window *window = first_window; window != NULL;
+        for (Window *window = first_window; window != nullptr;
                 window = window->next) {
             if (window->client.id == xcb_window) {
                 fprintf(stderr, "<%" PRIu32 ">", window->number);
@@ -419,7 +419,7 @@ static void log_notify_detail(xcb_notify_detail_t detail)
 
     fputs(COLOR(CYAN), stderr);
     string = notify_detail_to_string(detail);
-    if (string == NULL) {
+    if (string == nullptr) {
         fprintf(stderr, "%u", detail);
     } else {
         fputs(string, stderr);
@@ -433,7 +433,7 @@ static void log_notify_mode(xcb_notify_mode_t mode)
 
     fputs(COLOR(CYAN), stderr);
     string = notify_mode_to_string(mode);
-    if (string == NULL) {
+    if (string == nullptr) {
         fprintf(stderr, "%u", mode);
     } else {
         fputs(string, stderr);
@@ -481,10 +481,10 @@ static void log_atom(xcb_atom_t atom)
 
     fputs(COLOR(CYAN), stderr);
     atom_string = atom_to_string(atom);
-    if (atom_string == NULL) {
+    if (atom_string == nullptr) {
         name_cookie = xcb_get_atom_name(connection, atom);
-        name = xcb_get_atom_name_reply(connection, name_cookie, NULL);
-        if (name == NULL) {
+        name = xcb_get_atom_name_reply(connection, name_cookie, nullptr);
+        if (name == nullptr) {
             fprintf(stderr, "%" PRIu32, atom);
         } else {
             fprintf(stderr, "%.*s", xcb_get_atom_name_name_length(name),
@@ -650,7 +650,7 @@ static void log_generic_error(xcb_generic_error_t *error)
 
     /* get textual representation of the error */
     error_label = xcb_event_get_error_label(error->error_code);
-    if (error_label == NULL) {
+    if (error_label == nullptr) {
         V("error_code"); log_unsigned(error->error_code);
     } else {
         V("error_label"); fprintf(stderr, COLOR(CYAN) "%s" CLEAR_COLOR,
@@ -998,7 +998,7 @@ static void log_event(xcb_generic_event_t *event)
     } else if (randr_event_base > 0 &&
             event_type == randr_event_base + XCB_RANDR_NOTIFY) {
         fputs("RandrNotify", stderr);
-    } else if (xcb_event_get_label(event_type) != NULL) {
+    } else if (xcb_event_get_label(event_type) != nullptr) {
         fputs(xcb_event_get_label(event_type), stderr);
     } else {
         fprintf(stderr, "EVENT[%" PRIu8 "]", event_type);
@@ -1258,7 +1258,7 @@ void log_formatted(log_severity_t severity, const char *file, int line,
     }
 
     /* print the time and file with line number at the front */
-    current_time = time(NULL);
+    current_time = time(nullptr);
     tm = localtime(&current_time);
     strftime(buffer, sizeof(buffer),
             severity == LOG_SEVERITY_ERROR ? COLOR(RED) "{%F %T}" :
@@ -1369,7 +1369,7 @@ void log_formatted(log_severity_t severity, const char *file, int line,
                  */
                 do {
                     buffer[i] = format[i];
-                    if (strchr(PRINTF_FORMAT_SPECIFIERS, format[i]) != NULL) {
+                    if (strchr(PRINTF_FORMAT_SPECIFIERS, format[i]) != nullptr) {
                         buffer[i + 1] = '\0';
                         vfprintf(stderr, buffer, list);
                         fputs(CLEAR_COLOR, stderr);

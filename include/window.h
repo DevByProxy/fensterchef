@@ -1,7 +1,8 @@
 #ifndef WINDOW_H
 #define WINDOW_H
 
-#include <stdint.h>
+#include <cstdint>
+#include <memory>
 
 #include "bits/window_typedef.h"
 #include "bits/frame_typedef.h"
@@ -13,21 +14,78 @@
 #include "x11_management.h"
 
 /* the maximum width or height of a window */
-#define WINDOW_MAXIMUM_SIZE UINT16_MAX
+constexpr uint16_t WINDOW_MAXIMUM_SIZE = UINT16_MAX;
 
 /* the minimum width or height a window can have */
-#define WINDOW_MINIMUM_SIZE 4
+constexpr uint32_t WINDOW_MINIMUM_SIZE = 4;
 
 /* the minimum length of the window that needs to stay visible */
-#define WINDOW_MINIMUM_VISIBLE_SIZE 8
+constexpr uint32_t WINDOW_MINIMUM_VISIBLE_SIZE = 8;
 
 /* the number the first window gets assigned */
-#define FIRST_WINDOW_NUMBER 1
+constexpr uint32_t FIRST_WINDOW_NUMBER = 1;
+
+/* time in seconds to wait for a second close */
+constexpr int REQUEST_CLOSE_MAX_DURATION = 3;
 
 /* A window is a wrapper around an X window, it is always part of a few global
  * linked list and has a unique id (number).
  */
-struct window {
+class Window {
+public:
+    /* Constructor */
+    Window(xcb_window_t xcb_window);
+    
+    /* Destructor */
+    ~Window();
+    
+    /* Delete copy constructor and copy assignment to prevent copying */
+    Window(const Window&) = delete;
+    Window& operator=(const Window&) = delete;
+    
+    /* Attempt to close the window. If it is the first time, use a friendly method by
+     * sending a close request. Call this function again within
+     * REQUEST_CLOSE_MAX_DURATION to forcefully kill it.
+     */
+    void close();
+    
+    /* Move the window such that it is in bounds of the screen. */
+    void placeInBounds();
+    
+    /* Get the minimum size the window should have. */
+    void getMinimumSize(Size *size) const;
+    
+    /* Get the maximum size the window should have. */
+    void getMaximumSize(Size *size) const;
+    
+    /* Set the position and size of the window.
+     * Note that this function clips the parameters using getMinimumSize() and
+     * getMaximumSize().
+     */
+    void setSize(int32_t x, int32_t y, uint32_t width, uint32_t height);
+    
+    /* Put the window on the best suited Z stack position. */
+    void updateLayer();
+    
+    /* Get the frame this window is contained in.
+     * @return nullptr when the window is not in any frame.
+     */
+    Frame* getFrame() const;
+    
+    /* Check if the window accepts input focus. */
+    bool acceptsFocus();
+    
+    /* Accessors for commonly accessed members */
+    xcb_window_t getXcbWindowId() const { return client.id; }
+    uint32_t getNumber() const { return number; }
+    int32_t getX() const { return x; }
+    int32_t getY() const { return y; }
+    uint32_t getWidth() const { return width; }
+    uint32_t getHeight() const { return height; }
+    WindowState& getState() { return state; }
+    const WindowState& getState() const { return state; }
+    
+    /* Public members that need to be accessed by window management code */
     /* the server's view of the window */
     XClient client;
 
@@ -111,17 +169,8 @@ extern Window *first_window;
 /* the currently focused window */
 extern Window *focus_window;
 
-/* Create a window struct and add it to the window list. */
+/* Create a window and add it to the window list. */
 Window *create_window(xcb_window_t xcb);
-
-/* time in seconds to wait for a second close */
-#define REQUEST_CLOSE_MAX_DURATION 3
-
-/* Attempt to close a window. If it is the first time, use a friendly method by
- * sending a close request to the window. Call this function again within
- * `REQUEST_CLOSE_MAX_DURATION` to forcefully kill it.
- */
-void close_window(Window *window);
 
 /* Destroy given window and removes it from the window linked list.
  * This does NOT destroy the underlying X window.
@@ -132,40 +181,11 @@ void destroy_window(Window *window);
 void adjust_for_window_gravity(Monitor *monitor, int32_t *x, int32_t *y,
         uint32_t width, uint32_t height, uint32_t window_gravity);
 
-/* Move the window such that it is in bounds of the screen. */
-void place_window_in_bounds(Window *window);
-
-/* Get the minimum size the window should have. */
-void get_minimum_window_size(const Window *window, Size *size);
-
-/* Get the maximum size the window should have. */
-void get_maximum_window_size(const Window *window, Size *size);
-
-/* Set the position and size of a window.
- *
- * Note that this function clips the parameters using `get_minimum_size()` and
- * `get_maximum_size()`.
- */
-void set_window_size(Window *window, int32_t x, int32_t y, uint32_t width,
-        uint32_t height);
-
-/* Put the window on the best suited Z stack position. */
-void update_window_layer(Window *window);
-
 /* Get the internal window that has the associated X window.
  *
- * @return NULL when none has this X window.
+ * @return nullptr when none has this X window.
  */
 Window *get_window_of_xcb_window(xcb_window_t xcb_window);
-
-/* Get the frame this window is contained in.
- *
- * @return NULL when the window is not in any frame.
- */
-Frame *get_frame_of_window(const Window *window);
-
-/* Check if the window accepts input focus. */
-bool does_window_accept_focus(Window *window);
 
 /* Set the window that is in focus. */
 void set_focus_window(Window *window);

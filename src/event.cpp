@@ -1,6 +1,6 @@
-#include <inttypes.h>
+#include <cinttypes>
 #include <signal.h>
-#include <string.h>
+#include <cstring>
 #include <sys/select.h>
 #include <unistd.h>
 
@@ -72,7 +72,7 @@ int initialize_signal_handlers(void)
     memset(&action, 0, sizeof(action));
     action.sa_handler = alarm_handler;
     sigemptyset(&action.sa_mask);
-    if (sigaction(SIGALRM, &action, NULL) == -1) {
+    if (sigaction(SIGALRM, &action, nullptr) == -1) {
         LOG_ERROR("could not create alarm handler\n");
         return ERROR;
     }
@@ -94,7 +94,7 @@ void synchronize_client_list(void)
     uint32_t number_of_windows = 0;
     uint32_t index = 0;
 
-    for (window = first_window; window != NULL; window = window->next) {
+    for (window = first_window; window != nullptr; window = window->next) {
         number_of_windows++;
     }
 
@@ -104,7 +104,7 @@ void synchronize_client_list(void)
     }
 
     /* sort the list in order of the Z stacking */
-    for (window = oldest_window; window != NULL; window = window->newer) {
+    for (window = oldest_window; window != nullptr; window = window->newer) {
         client_list.ids[index] = window->client.id;
         index++;
     }
@@ -115,7 +115,7 @@ void synchronize_client_list(void)
 
     index = 0;
     /* sort the list in order of the Z stacking */
-    for (window = bottom_window; window != NULL; window = window->above) {
+    for (window = bottom_window; window != nullptr; window = window->above) {
         client_list.ids[index] = window->client.id;
         index++;
     }
@@ -142,7 +142,7 @@ void synchronize_with_server(void)
      **/
 
     /* reset all struts before recomputing */
-    for (monitor = first_monitor; monitor != NULL; monitor = monitor->next) {
+    for (monitor = first_monitor; monitor != nullptr; monitor = monitor->next) {
         monitor->strut.left = 0;
         monitor->strut.top = 0;
         monitor->strut.right = 0;
@@ -154,7 +154,7 @@ void synchronize_with_server(void)
     rectangle.width = 0;
     rectangle.height = 0;
     /* recompute all struts */
-    for (Window *window = first_window; window != NULL; window = window->next) {
+    for (Window *window = first_window; window != nullptr; window = window->next) {
         if (!window->state.is_visible) {
             continue;
         }
@@ -186,7 +186,7 @@ void synchronize_with_server(void)
     }
 
     /* resize all frames to their according size */
-    for (monitor = first_monitor; monitor != NULL; monitor = monitor->next) {
+    for (monitor = first_monitor; monitor != nullptr; monitor = monitor->next) {
         resize_frame(monitor->frame,
                 monitor->x + monitor->strut.left,
                 monitor->y + monitor->strut.top,
@@ -197,7 +197,7 @@ void synchronize_with_server(void)
     }
 
     /* configure all visible windows and map them */
-    for (Window *window = top_window; window != NULL; window = window->below) {
+    for (Window *window = top_window; window != nullptr; window = window->below) {
         if (!window->state.is_visible) {
             continue;
         }
@@ -211,7 +211,7 @@ void synchronize_with_server(void)
     }
 
     /* unmap all invisible windows */
-    for (Window *window = bottom_window; window != NULL;
+    for (Window *window = bottom_window; window != nullptr;
             window = window->above) {
         if (!window->state.is_visible) {
             state_atom = ATOM(_NET_WM_STATE_HIDDEN);
@@ -247,9 +247,9 @@ int next_cycle(void)
      * descriptor for the X connection arrives; when a signal is received,
      * `select()` will however also unblock and return -1
      */
-    if (select(x_file_descriptor + 1, &set, NULL, NULL, NULL) > 0) {
+    if (select(x_file_descriptor + 1, &set, nullptr, nullptr, nullptr) > 0) {
         /* handle all received events */
-        while (event = xcb_poll_for_event(connection), event != NULL) {
+        while (event = xcb_poll_for_event(connection), event != nullptr) {
             handle_window_list_event(event);
 
             handle_event(event);
@@ -297,7 +297,7 @@ void initiate_window_move_resize(Window *window,
     xcb_generic_error_t *error;
 
     /* check if no window is already being moved/resized */
-    if (move_resize.window != NULL) {
+    if (move_resize.window != nullptr) {
         return;
     }
 
@@ -307,7 +307,7 @@ void initiate_window_move_resize(Window *window,
     if (start_x < 0) {
         query_cookie = xcb_query_pointer(connection, screen->root);
         query = xcb_query_pointer_reply(connection, query_cookie, &error);
-        if (query == NULL) {
+        if (query == nullptr) {
             LOG_ERROR("could not query pointer: %E\n", error);
             free(error);
             return;
@@ -370,16 +370,16 @@ void initiate_window_move_resize(Window *window,
             XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC, screen->root,
             XCB_NONE, XCB_CURRENT_TIME);
     grab = xcb_grab_pointer_reply(connection, grab_cookie, &error);
-    if (grab == NULL) {
+    if (grab == nullptr) {
         LOG_ERROR("could not grab pointer: %E\n", error);
         free(error);
-        move_resize.window = NULL;
+        move_resize.window = nullptr;
         return;
     }
     if (grab->status != XCB_GRAB_STATUS_SUCCESS) {
         LOG_ERROR("could not grab pointer\n");
         free(grab);
-        move_resize.window = NULL;
+        move_resize.window = nullptr;
         return;
     }
     free(grab);
@@ -391,7 +391,7 @@ static void cancel_window_move_resize(void)
     Frame *frame;
 
     /* make sure a window is currently being moved/resized */
-    if (move_resize.window == NULL) {
+    if (move_resize.window == nullptr) {
         return;
     }
 
@@ -399,7 +399,7 @@ static void cancel_window_move_resize(void)
 
     /* restore the old position and size as good as we can */
     frame = get_frame_of_window(move_resize.window);
-    if (frame != NULL) {
+    if (frame != nullptr) {
         bump_frame_edge(frame, FRAME_EDGE_LEFT,
                 move_resize.window->x -
                     move_resize.initial_geometry.x);
@@ -424,7 +424,7 @@ static void cancel_window_move_resize(void)
 
     /* release mouse events back to the applications */
     xcb_ungrab_pointer(connection, XCB_CURRENT_TIME);
-    move_resize.window = NULL;
+    move_resize.window = nullptr;
 }
 
 /* Key press events are sent when a grabbed key is pressed. */
@@ -434,7 +434,7 @@ static void handle_key_press(xcb_key_press_event_t *event)
 
     key = find_configured_key(&configuration, event->state,
             get_keysym(event->detail), 0);
-    if (key != NULL) {
+    if (key != nullptr) {
         LOG("performing action(s): %A\n", key->number_of_actions,
                 key->actions);
         for (uint32_t i = 0; i < key->number_of_actions; i++) {
@@ -456,7 +456,7 @@ static void handle_key_release(xcb_key_release_event_t *event)
 
     key = find_configured_key(&configuration, event->state,
             get_keysym(event->detail), BINDING_FLAG_RELEASE);
-    if (key != NULL) {
+    if (key != nullptr) {
         LOG("performing action(s): %A\n", key->number_of_actions,
                 key->actions);
         for (uint32_t i = 0; i < key->number_of_actions; i++) {
@@ -477,23 +477,23 @@ static void handle_button_press(xcb_button_press_event_t *event)
     Window *window;
     struct configuration_button *button;
 
-    if (move_resize.window != NULL) {
+    if (move_resize.window != nullptr) {
         cancel_window_move_resize();
         return;
     }
 
     if (event->child == 0) {
-        window = NULL;
+        window = nullptr;
     } else {
         window = get_window_of_xcb_window(event->child);
-        if (window == NULL) {
+        if (window == nullptr) {
             return;
         }
     }
 
     button = find_configured_button(&configuration, event->state,
             event->detail, 0);
-    if (button != NULL) {
+    if (button != nullptr) {
         LOG("performing action(s): %A\n", button->number_of_actions,
                 button->actions);
         for (uint32_t i = 0; i < button->number_of_actions; i++) {
@@ -514,23 +514,23 @@ static void handle_button_release(xcb_button_release_event_t *event)
     struct configuration_button *button;
 
     if (event->child == 0) {
-        window = NULL;
+        window = nullptr;
     } else {
         window = get_window_of_xcb_window(event->child);
-        if (window == NULL) {
+        if (window == nullptr) {
             return;
         }
     }
 
-    if (move_resize.window != NULL) {
+    if (move_resize.window != nullptr) {
         /* release mouse events back to the applications */
         xcb_ungrab_pointer(connection, XCB_CURRENT_TIME);
-        move_resize.window = NULL;
+        move_resize.window = nullptr;
     }
 
     button = find_configured_button(&configuration, event->state,
             event->detail, BINDING_FLAG_RELEASE);
-    if (button != NULL) {
+    if (button != nullptr) {
         LOG("performing action(s): %A\n", button->number_of_actions,
                 button->actions);
         for (uint32_t i = 0; i < button->number_of_actions; i++) {
@@ -555,7 +555,7 @@ static void handle_motion_notify(xcb_motion_notify_event_t *event)
     int32_t left_delta, top_delta, right_delta, bottom_delta;
     Frame *frame;
 
-    if (move_resize.window == NULL) {
+    if (move_resize.window == nullptr) {
         LOG_ERROR("receiving motion events without a window to move?\n");
         return;
     }
@@ -664,7 +664,7 @@ static void handle_motion_notify(xcb_motion_notify_event_t *event)
     }
 
     frame = get_frame_of_window(move_resize.window);
-    if (frame != NULL) {
+    if (frame != nullptr) {
         bump_frame_edge(frame, FRAME_EDGE_LEFT,
                 move_resize.window->x - new_geometry.x);
         bump_frame_edge(frame, FRAME_EDGE_TOP,
@@ -692,7 +692,7 @@ static void handle_unmap_notify(xcb_unmap_notify_event_t *event)
     Window *window;
 
     window = get_window_of_xcb_window(event->window);
-    if (window == NULL) {
+    if (window == nullptr) {
         return;
     }
 
@@ -702,7 +702,7 @@ static void handle_unmap_notify(xcb_unmap_notify_event_t *event)
     if (window == move_resize.window) {
         /* release mouse events back to the applications */
         xcb_ungrab_pointer(connection, XCB_CURRENT_TIME);
-        move_resize.window = NULL;
+        move_resize.window = nullptr;
     }
 
     hide_window(window);
@@ -717,10 +717,10 @@ static void handle_map_request(xcb_map_request_event_t *event)
     Window *window;
 
     window = get_window_of_xcb_window(event->window);
-    if (window == NULL) {
+    if (window == nullptr) {
         window = create_window(event->window);
     }
-    if (window == NULL) {
+    if (window == nullptr) {
         return;
     }
 
@@ -738,7 +738,7 @@ static void handle_destroy_notify(xcb_destroy_notify_event_t *event)
     Window *window;
 
     window = get_window_of_xcb_window(event->window);
-    if (window != NULL) {
+    if (window != nullptr) {
         destroy_window(window);
     }
 }
@@ -749,7 +749,7 @@ static void handle_property_notify(xcb_property_notify_event_t *event)
     Window *window;
 
     window = get_window_of_xcb_window(event->window);
-    if (window == NULL) {
+    if (window == nullptr) {
         return;
     }
     cache_window_property(window, event->atom);
@@ -765,7 +765,7 @@ static void handle_configure_request(xcb_configure_request_event_t *event)
     uint32_t mask = 0;
 
     window = get_window_of_xcb_window(event->window);
-    if (window != NULL && window->state.mode != WINDOW_MODE_FLOATING) {
+    if (window != nullptr && window->state.mode != WINDOW_MODE_FLOATING) {
         return;
     }
 
@@ -800,7 +800,7 @@ static void handle_client_message(xcb_client_message_event_t *event)
     uint32_t width, height;
 
     window = get_window_of_xcb_window(event->window);
-    if (window == NULL) {
+    if (window == nullptr) {
         return;
     }
 

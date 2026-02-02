@@ -1,6 +1,6 @@
 #include <ctype.h>
 #include <stddef.h>
-#include <string.h>
+#include <cstring>
 
 #include "configuration_parser.h"
 #include "log.h"
@@ -184,39 +184,39 @@ static const struct parser_label_name {
     } variables[8];
 } labels[PARSER_LABEL_MAX] = {
     [PARSER_LABEL_GENERAL] = {
-        "general", NULL, {
+        "general", nullptr, {
         { "overlap-percentage", PARSER_DATA_TYPE_INTEGER,
             offsetof(struct configuration, general.overlap_percentage) },
         /* null terminate the end */
-        { NULL, 0, 0 } }
+        { nullptr, 0, 0 } }
     },
 
     [PARSER_LABEL_STARTUP] = {
         "startup", parse_startup_actions, {
         /* null terminate the end */
-        { NULL, 0, 0 } }
+        { nullptr, 0, 0 } }
     },
 
     [PARSER_LABEL_TILING] = {
-        "tiling", NULL, {
+        "tiling", nullptr, {
         { "auto-fill-void", PARSER_DATA_TYPE_BOOLEAN,
             offsetof(struct configuration, tiling.auto_fill_void) },
         { "auto-remove-void", PARSER_DATA_TYPE_BOOLEAN,
             offsetof(struct configuration, tiling.auto_remove_void) },
         /* null terminate the end */
-        { NULL, 0, 0 } }
+        { nullptr, 0, 0 } }
     },
 
     [PARSER_LABEL_FONT] = {
-        "font", NULL, {
+        "font", nullptr, {
         { "name", PARSER_DATA_TYPE_STRING,
             offsetof(struct configuration, font.name) },
         /* null terminate the end */
-        { NULL, 0, 0 } }
+        { nullptr, 0, 0 } }
     },
 
     [PARSER_LABEL_BORDER] = {
-        "border", NULL, {
+        "border", nullptr, {
         { "size", PARSER_DATA_TYPE_INTEGER,
             offsetof(struct configuration, border.size) },
         { "color", PARSER_DATA_TYPE_COLOR,
@@ -224,21 +224,21 @@ static const struct parser_label_name {
         { "focus-color", PARSER_DATA_TYPE_COLOR,
             offsetof(struct configuration, border.focus_color) },
         /* null terminate the end */
-        { NULL, 0, 0 } }
+        { nullptr, 0, 0 } }
     },
 
     [PARSER_LABEL_GAPS] = {
-        "gaps", NULL, {
+        "gaps", nullptr, {
         { "inner", PARSER_DATA_TYPE_QUAD,
             offsetof(struct configuration, gaps.inner) },
         { "outer", PARSER_DATA_TYPE_QUAD,
             offsetof(struct configuration, gaps.outer) },
         /* null terminate the end */
-        { NULL, 0, 0 } }
+        { nullptr, 0, 0 } }
     },
 
     [PARSER_LABEL_NOTIFICATION] = {
-        "notification", NULL, {
+        "notification", nullptr, {
         { "duration", PARSER_DATA_TYPE_INTEGER,
             offsetof(struct configuration, notification.duration) },
         { "padding", PARSER_DATA_TYPE_INTEGER,
@@ -252,7 +252,7 @@ static const struct parser_label_name {
         { "foreground", PARSER_DATA_TYPE_COLOR,
             offsetof(struct configuration, notification.foreground) },
         /* null terminate the end */
-        { NULL, 0, 0 } }
+        { nullptr, 0, 0 } }
     },
 
     [PARSER_LABEL_MOUSE] = {
@@ -264,7 +264,7 @@ static const struct parser_label_name {
         { "ignore-modifiers", PARSER_DATA_TYPE_MODIFIERS,
             offsetof(struct configuration, mouse.ignore_modifiers) },
         /* null terminate the end */
-        { NULL, 0, 0 } }
+        { nullptr, 0, 0 } }
     },
 
     [PARSER_LABEL_KEYBOARD] = {
@@ -274,7 +274,7 @@ static const struct parser_label_name {
         { "ignore-modifiers", PARSER_DATA_TYPE_MODIFIERS,
             offsetof(struct configuration, keyboard.ignore_modifiers) },
         /* null terminate the end */
-        { NULL, 0, 0 } }
+        { nullptr, 0, 0 } }
     },
 };
 
@@ -294,12 +294,12 @@ static const struct parser_command {
     [PARSER_LABEL_MOUSE] = {
         { "merge-default", merge_default_mouse },
         /* null terminate the end */
-        { NULL, NULL }
+        { nullptr, nullptr }
     },
     [PARSER_LABEL_KEYBOARD] = {
         { "merge-default", merge_default_keyboard },
         /* null terminate the end */
-        { NULL, NULL }
+        { nullptr, nullptr }
     }
 };
 
@@ -760,7 +760,7 @@ static parser_error_t parse_actions(Parser *parser,
 {
     parser_error_t error;
 
-    Action *actions = NULL, *action;
+    Action *actions = nullptr, *action;
     uint32_t number_of_actions = 0;
 
     while (error = parse_identifier(parser), error != PARSER_ERROR_TOO_LONG) {
@@ -923,7 +923,7 @@ static parser_error_t parse_mouse_binding(Parser *parser)
             parser->button.modifiers, parser->button.index,
             parser->button.flags);
 
-    if (button != NULL) {
+    if (button != nullptr) {
         free_actions(button->actions, button->number_of_actions);
     } else {
         RESIZE(parser->configuration->mouse.buttons,
@@ -950,7 +950,7 @@ static parser_error_t parse_keyboard_binding(Parser *parser)
     key = find_configured_key(parser->configuration, parser->key.modifiers,
             parser->key.key_symbol, parser->key.flags);
 
-    if (key != NULL) {
+    if (key != nullptr) {
         free_actions(key->actions, key->number_of_actions);
     } else {
         RESIZE(parser->configuration->keyboard.keys,
@@ -1021,7 +1021,7 @@ parser_error_t parse_line(Parser *parser)
     for (uint32_t i = 0; i < SIZE(labels[parser->label].variables); i++) {
         const struct parser_label_variable *const variable =
             &labels[parser->label].variables[i];
-        if (variable->name == NULL) {
+        if (variable->name == nullptr) {
             break;
         }
 
@@ -1043,7 +1043,7 @@ parser_error_t parse_line(Parser *parser)
     /* check for a parser command */
     for (uint32_t i = 0; i < SIZE(commands[parser->label]); i++) {
         const struct parser_command *const command = &commands[parser->label][i];
-        if (command->name == NULL) {
+        if (command->name == nullptr) {
             break;
         }
 
@@ -1056,7 +1056,7 @@ parser_error_t parse_line(Parser *parser)
     parser->column = parser->item_start_column;
 
     /* check if the label has a special parser */
-    if (labels[parser->label].special_parser == NULL) {
+    if (labels[parser->label].special_parser == nullptr) {
         return PARSER_ERROR_INVALID_VARIABLE_NAME;
     }
 

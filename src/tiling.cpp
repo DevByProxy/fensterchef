@@ -1,4 +1,4 @@
-#include <inttypes.h>
+#include <cinttypes>
 
 #include "configuration.h"
 #include "log.h"
@@ -17,7 +17,7 @@ void split_frame(Frame *split_from, frame_split_direction_t direction)
     right = xcalloc(1, sizeof(*right));
 
     /* let `left` take the children or window */
-    if (split_from->left != NULL) {
+    if (split_from->left != nullptr) {
         left->split_direction = split_from->split_direction;
         left->left = split_from->left;
         left->right = split_from->right;
@@ -25,7 +25,7 @@ void split_frame(Frame *split_from, frame_split_direction_t direction)
         left->right->parent = left;
     } else {
         left->window = split_from->window;
-        split_from->window = NULL;
+        split_from->window = nullptr;
     }
 
     split_from->split_direction = direction;
@@ -59,10 +59,10 @@ Frame *get_left_or_above_frame(Frame *frame,
 {
     Frame *parent;
 
-    while (frame != NULL) {
+    while (frame != nullptr) {
         parent = frame->parent;
-        if (parent == NULL) {
-            return NULL;
+        if (parent == nullptr) {
+            return nullptr;
         }
 
         if (parent->split_direction == split_direction) {
@@ -73,7 +73,7 @@ Frame *get_left_or_above_frame(Frame *frame,
             return parent->left;
         }
     }
-    return NULL;
+    return nullptr;
 }
 
 /* Get the frame on the left of @frame. */
@@ -94,10 +94,10 @@ Frame *get_right_or_below_frame(Frame *frame,
 {
     Frame *parent;
 
-    while (frame != NULL) {
+    while (frame != nullptr) {
         parent = frame->parent;
-        if (parent == NULL) {
-            return NULL;
+        if (parent == nullptr) {
+            return nullptr;
         }
 
         if (parent->split_direction == split_direction) {
@@ -108,7 +108,7 @@ Frame *get_right_or_below_frame(Frame *frame,
             return parent->right;
         }
     }
-    return NULL;
+    return nullptr;
 }
 
 /* Get the frame on the right of @frame. */
@@ -126,7 +126,7 @@ Frame *get_below_frame(Frame *frame)
 /* Get the minimum size the given frame should have. */
 static void get_minimum_frame_size(Frame *frame, Size *size)
 {
-    if (frame->left != NULL) {
+    if (frame->left != nullptr) {
         Size left_size, right_size;
 
         get_minimum_frame_size(frame->left, &left_size);
@@ -159,7 +159,7 @@ int32_t bump_frame_edge(Frame *frame, frame_edge_t edge, int32_t amount)
     /* delegate left movement to right movement */
     case FRAME_EDGE_LEFT:
         frame = get_left_frame(frame);
-        if (frame == NULL) {
+        if (frame == nullptr) {
             return 0;
         }
         amount = -bump_frame_edge(frame, FRAME_EDGE_RIGHT, -amount);
@@ -168,7 +168,7 @@ int32_t bump_frame_edge(Frame *frame, frame_edge_t edge, int32_t amount)
     /* delegate top movement to bottom movement */
     case FRAME_EDGE_TOP:
         frame = get_above_frame(frame);
-        if (frame == NULL) {
+        if (frame == nullptr) {
             return 0;
         }
         amount = -bump_frame_edge(frame, FRAME_EDGE_BOTTOM, -amount);
@@ -177,7 +177,7 @@ int32_t bump_frame_edge(Frame *frame, frame_edge_t edge, int32_t amount)
     /* move the frame's right edge */
     case FRAME_EDGE_RIGHT:
         right = get_right_frame(frame);
-        if (right == NULL) {
+        if (right == nullptr) {
             return 0;
         }
         frame = get_left_frame(right);
@@ -205,7 +205,7 @@ int32_t bump_frame_edge(Frame *frame, frame_edge_t edge, int32_t amount)
     /* move the frame's bottom edge */
     case FRAME_EDGE_BOTTOM:
         right = get_below_frame(frame);
-        if (right == NULL) {
+        if (right == nullptr) {
             return 0;
         }
         frame = get_above_frame(right);
@@ -238,7 +238,7 @@ int remove_void(Frame *frame)
 {
     Frame *parent, *other;
 
-    if (frame->parent == NULL) {
+    if (frame->parent == nullptr) {
         LOG("can not remove the root frame %F\n", frame);
         return ERROR;
     }
@@ -253,7 +253,7 @@ int remove_void(Frame *frame)
 
     parent->left = other->left;
     parent->right = other->right;
-    if (other->left != NULL) {
+    if (other->left != nullptr) {
         parent->split_direction = other->split_direction;
         parent->left->parent = parent;
         parent->right->parent = parent;
@@ -272,7 +272,7 @@ int remove_void(Frame *frame)
     const int x = parent->x + parent->width / 2;
     const int y = parent->y + parent->height / 2;
     /* move down the parent to find the most centered new frame to focus */
-    while (parent->left != NULL) {
+    while (parent->left != nullptr) {
         if (parent->split_direction == FRAME_SPLIT_HORIZONTALLY) {
             if (parent->left->x + (int32_t) parent->left->width >= x) {
                 parent = parent->left;

@@ -1,4 +1,4 @@
-#include <inttypes.h>
+#include <cinttypes>
 
 #include "configuration.h"
 #include "frame.h"
@@ -245,7 +245,7 @@ void add_window_states(Window *window, xcb_atom_t *states,
         j = 0;
 
         /* add the state to the window properties */
-        if (window->states != NULL) {
+        if (window->states != nullptr) {
             /* find the number of elements */
             for (; window->states[j] != XCB_NONE; j++) {
                 /* nothing */
@@ -278,7 +278,7 @@ void remove_window_states(Window *window, xcb_atom_t *states,
     uint32_t effective_count = 0;
 
     /* if no states are there, nothing can be removed */
-    if (window->states == NULL) {
+    if (window->states == nullptr) {
         return;
     }
 
@@ -344,7 +344,7 @@ void set_window_mode(Window *window, window_mode_t mode)
             window->state.mode = WINDOW_MODE_TILING;
             Frame *const frame = get_frame_of_window(window);
             window->state.mode = mode;
-            frame->window = NULL;
+            frame->window = nullptr;
             if (configuration.tiling.auto_fill_void) {
                 fill_void_with_stash(frame);
             }
@@ -416,7 +416,7 @@ void show_window(Window *window)
     case WINDOW_MODE_TILING: {
         Frame *const frame = get_frame_of_window(window);
         /* we never would want this to happen */
-        if (frame != NULL) {
+        if (frame != nullptr) {
             LOG_ERROR("window %W is already in frame %F\n", window, frame);
             reload_frame(frame);
             break;
@@ -465,7 +465,7 @@ void hide_window(Window *window)
 
         stash = stash_frame_later(frame);
         if (configuration.tiling.auto_remove_void) {
-            if (frame->parent != NULL) {
+            if (frame->parent != nullptr) {
                 remove_void(frame);
             }
         } else if (configuration.tiling.auto_fill_void) {
@@ -478,7 +478,7 @@ void hide_window(Window *window)
 
         /* make sure no broken focus remains */
         if (window == focus_window) {
-            set_focus_window(NULL);
+            set_focus_window(nullptr);
         }
         break;
 
@@ -490,9 +490,9 @@ void hide_window(Window *window)
             Window *next;
 
             /* first get a top window that is visible and not a tiling window */
-            for (next = top_window; next != NULL; next = next->below) {
+            for (next = top_window; next != nullptr; next = next->below) {
                 if (next->state.mode == WINDOW_MODE_TILING) {
-                    next = NULL;
+                    next = nullptr;
                     break;
                 }
                 if (next != window && next->state.is_visible) {
@@ -501,7 +501,7 @@ void hide_window(Window *window)
             }
 
             /* if no such window exists, then we focus the current frame */
-            if (next == NULL) {
+            if (next == nullptr) {
                 set_focus_frame(focus_frame);
             } else {
                 set_focus_window_with_frame(next);
@@ -529,6 +529,6 @@ void hide_window_abruptly(Window *window)
 
     /* make sure there is no invalid focus window */
     if (window == focus_window) {
-        set_focus_window(NULL);
+        set_focus_window(nullptr);
     }
 }

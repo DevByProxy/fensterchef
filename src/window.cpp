@@ -1,5 +1,5 @@
-#include <inttypes.h>
-#include <string.h>
+#include <cinttypes>
+#include <cstring>
 
 #include "configuration.h"
 #include "event.h"
@@ -10,63 +10,60 @@
 #include "xalloc.h"
 
 /* the window that was created before any other */
-Window *oldest_window;
+Window *oldest_window = nullptr;
 
 /* the window at the bottom of the Z stack */
-Window *bottom_window;
+Window *bottom_window = nullptr;
 
 /* the window at the top of the Z stack */
-Window *top_window;
+Window *top_window = nullptr;
 
 /* the first window in the number linked list */
-Window *first_window;
+Window *first_window = nullptr;
 
 /* the currently focused window */
-Window *focus_window;
+Window *focus_window = nullptr;
 
-/* Create a window struct and add it to the window list. */
-Window *create_window(xcb_window_t xcb_window)
+/* Window constructor - initializes window from X window */
+Window::Window(xcb_window_t xcb_window)
+    : name(nullptr)
+    , protocols(nullptr)
+    , states(nullptr)
+    , x(0)
+    , y(0)
+    , width(0)
+    , height(0)
+    , border_size(0)
+    , border_color(0)
+    , number(0)
+    , below(nullptr)
+    , above(nullptr)
+    , newer(nullptr)
+    , next(nullptr)
 {
     xcb_get_window_attributes_cookie_t attributes_cookie;
-    xcb_get_window_attributes_reply_t *attributes;
+    xcb_get_window_attributes_reply_t *attributes = nullptr;
     xcb_get_geometry_cookie_t geometry_cookie;
-    xcb_get_geometry_reply_t *geometry;
-    xcb_generic_error_t *error;
-    Window *window;
-    Window *previous;
-    window_mode_t mode;
+    xcb_get_geometry_reply_t *geometry = nullptr;
+    xcb_generic_error_t *error = nullptr;
 
     attributes_cookie = xcb_get_window_attributes(connection, xcb_window);
     geometry_cookie = xcb_get_geometry(connection, xcb_window);
 
-    attributes = xcb_get_window_attributes_reply(connection, attributes_cookie,
-            &error);
-    if (attributes == NULL) {
-        LOG_ERROR("could not get window attributes of %w: %E\n",
-                xcb_window, error);
+    attributes = xcb_get_window_attributes_reply(connection, attributes_cookie, &error);
+    if (attributes == nullptr) {
+        LOG_ERROR("could not get window attributes of %w: %E\n", xcb_window, error);
         free(error);
         xcb_discard_reply(connection, geometry_cookie.sequence);
-        return NULL;
-    }
-    /* override redirect is used by windows to indicate that our window manager
-     * should not tamper with them, we also check if the class is InputOnly
-     * which is not a case we want to handle
-     */
-    if (attributes->override_redirect ||
-            attributes->_class == XCB_WINDOW_CLASS_INPUT_ONLY) {
-        free(attributes);
-        xcb_discard_reply(connection, geometry_cookie.sequence);
-        return NULL;
+        throw std::runtime_error("Failed to get window attributes");
     }
 
-    geometry = xcb_get_geometry_reply(connection, geometry_cookie,
-            &error);
-    if (geometry == NULL) {
-        LOG_ERROR("could not get window geometry of %w: %E\n",
-                xcb_window, error);
+    geometry = xcb_get_geometry_reply(connection, geometry_cookie, &error);
+    if (geometry == nullptr) {
+        LOG_ERROR("could not get window geometry of %w: %E\n", xcb_window, error);
         free(attributes);
         free(error);
-        return NULL;
+        throw std::runtime_error("Failed to get window geometry");
     }
 
     /* set the border color */
@@ -76,32 +73,182 @@ Window *create_window(xcb_window_t xcb_window)
     xcb_change_window_attributes(connection, xcb_window,
             XCB_CW_BORDER_PIXEL | XCB_CW_EVENT_MASK, general_values);
 
-    window = xcalloc(1, sizeof(*window));
-
-    window->client.id = xcb_window;
-    window->client.x = geometry->x;
-    window->client.y = geometry->x;
-    window->client.width = geometry->width;
-    window->client.height = geometry->height;
-    window->client.border_color = configuration.border.color;
+    // Initialize client data
+    std::memset(&client, 0, sizeof(client));
+    client.id = xcb_window;
+    client.x = geometry->x;
+    client.y = geometry->y;
+    client.width = geometry->width;
+    client.height = geometry->height;
+    client.border_color = configuration.border.color;
+    
     /* check if the window is already mapped on the X server */
     if (attributes->map_state != XCB_MAP_STATE_UNMAPPED) {
-        window->client.is_mapped = true;
+        client.is_mapped = true;
     }
 
     free(geometry);
     free(attributes);
 
+    // Initialize other members
+    std::memset(&size_hints, 0, sizeof(size_hints));
+    std::memset(&hints, 0, sizeof(hints));
+    std::memset(&strut, 0, sizeof(strut));
+    std::memset(&fullscreen_monitors, 0, sizeof(fullscreen_monitors));
+    std::memset(&motif_wm_hints, 0, sizeof(motif_wm_hints));
+    std::memset(&state, 0, sizeof(state));
+    std::memset(&floating, 0, sizeof(floating));
+    
+    transient_for = XCB_NONE;
+
     /* start off with an invalid mode, this gets set below */
-    window->state.mode = WINDOW_MODE_MAX;
-    window->x = window->client.x;
-    window->y = window->client.y;
-    window->width = window->client.width;
-    window->height = window->client.height;
-    window->border_color = window->client.border_color;
+    state.mode = WINDOW_MODE_MAX;
+    x = client.x;
+    y = client.y;
+    width = client.width;
+    height = client.height;
+    border_color = client.border_color;
+}
+
+/* Window destructor */
+Window::~Window()
+{
+    // Free allocated resources
+    if (name != nullptr) {
+        free(name);
+    }
+    if (protocols != nullptr) {
+        free(protocols);
+    }
+    if (states != nullptr) {
+        free(states);
+    }
+}
+
+/* Attempt to close the window */
+void Window::close()
+{
+    time_t current_time;
+    char event_data[32];
+    xcb_client_message_event_t *event;
+
+    current_time = time(nullptr);
+    /* if either `WM_DELETE_WINDOW` is not supported or a close was requested
+     * twice in a row
+     */
+    if (!supports_protocol(this, ATOM(WM_DELETE_WINDOW)) ||
+            (state.was_close_requested && current_time <=
+                state.user_request_close_time + REQUEST_CLOSE_MAX_DURATION)) {
+        xcb_kill_client(connection, client.id);
+        return;
+    }
+
+    /* bake an event for running a protocol on the window */
+    event = reinterpret_cast<xcb_client_message_event_t*>(event_data);
+    event->response_type = XCB_CLIENT_MESSAGE;
+    event->window = client.id;
+    event->type = ATOM(WM_PROTOCOLS);
+    event->format = 32;
+    std::memset(&event->data, 0, sizeof(event->data));
+    event->data.data32[0] = ATOM(WM_DELETE_WINDOW);
+    xcb_send_event(connection, false, client.id,
+            XCB_EVENT_MASK_NO_EVENT, event_data);
+
+    state.was_close_requested = true;
+    state.user_request_close_time = current_time;
+}
+
+/* Get the frame this window is contained in */
+Frame* Window::getFrame() const
+{
+    return get_frame_of_window(this);
+}
+
+/* Check if the window accepts input focus */
+bool Window::acceptsFocus()
+{
+    if (state.mode == WINDOW_MODE_DOCK) {
+        return false;
+    }
+
+    if (supports_protocol(this, ATOM(WM_TAKE_FOCUS))) {
+        return true;
+    }
+
+    return !(hints.flags & XCB_ICCCM_WM_HINT_INPUT) || hints.input != 0;
+}
+
+/* Get the minimum size the window should have */
+void Window::getMinimumSize(Size *size) const
+{
+    get_minimum_window_size(this, size);
+}
+
+/* Get the maximum size the window should have */
+void Window::getMaximumSize(Size *size) const
+{
+    get_maximum_window_size(this, size);
+}
+
+/* Set the position and size of the window */
+void Window::setSize(int32_t new_x, int32_t new_y, uint32_t new_width, uint32_t new_height)
+{
+    set_window_size(this, new_x, new_y, new_width, new_height);
+}
+
+/* Move the window such that it is in bounds of the screen */
+void Window::placeInBounds()
+{
+    place_window_in_bounds(this);
+}
+
+/* Put the window on the best suited Z stack position */
+void Window::updateLayer()
+{
+    update_window_layer(this);
+}
+
+/* Create a window and add it to the window list. */
+Window *create_window(xcb_window_t xcb_window)
+{
+    xcb_get_window_attributes_cookie_t attributes_cookie;
+    xcb_get_window_attributes_reply_t *attributes;
+    xcb_generic_error_t *error;
+    Window *window;
+    Window *previous;
+    window_mode_t mode;
+
+    // Check if we should manage this window
+    attributes_cookie = xcb_get_window_attributes(connection, xcb_window);
+    attributes = xcb_get_window_attributes_reply(connection, attributes_cookie, &error);
+    
+    if (attributes == nullptr) {
+        LOG_ERROR("could not get window attributes of %w: %E\n", xcb_window, error);
+        free(error);
+        return nullptr;
+    }
+    
+    /* override redirect is used by windows to indicate that our window manager
+     * should not tamper with them, we also check if the class is InputOnly
+     * which is not a case we want to handle
+     */
+    if (attributes->override_redirect ||
+            attributes->_class == XCB_WINDOW_CLASS_INPUT_ONLY) {
+        free(attributes);
+        return nullptr;
+    }
+    free(attributes);
+
+    // Use constructor to create the window
+    try {
+        window = new Window(xcb_window);
+    } catch (const std::exception& e) {
+        LOG_ERROR("failed to create window: %s\n", e.what());
+        return nullptr;
+    }
 
     /* link into the Z, age and number linked lists */
-    if (first_window == NULL) {
+    if (first_window == nullptr) {
         oldest_window = window;
         bottom_window = window;
         top_window = window;
@@ -111,7 +258,7 @@ Window *create_window(xcb_window_t xcb_window)
         previous = first_window;
         if (first_window->number == FIRST_WINDOW_NUMBER) {
             /* find a gap in the window numbers */
-            for (; previous->next != NULL; previous = previous->next) {
+            for (; previous->next != nullptr; previous = previous->next) {
                 if (previous->number + 1 < previous->next->number) {
                     break;
                 }
@@ -126,7 +273,7 @@ Window *create_window(xcb_window_t xcb_window)
         }
 
         /* put the window at the top of the Z linked list */
-        while (previous->above != NULL) {
+        while (previous->above != nullptr) {
             previous = previous->above;
         }
         previous->above = window;
@@ -134,7 +281,7 @@ Window *create_window(xcb_window_t xcb_window)
 
         /* put the window into the age linked list */
         previous = oldest_window;
-        while (previous->newer != NULL) {
+        while (previous->newer != nullptr) {
             previous = previous->newer;
         }
         previous->newer = window;
@@ -143,7 +290,7 @@ Window *create_window(xcb_window_t xcb_window)
     /* initialize the window mode and Z position */
     mode = initialize_window_properties(window);
     set_window_mode(window, mode);
-    update_window_layer(window);
+    window->updateLayer();
 
     has_client_list_changed = true;
 
@@ -161,7 +308,7 @@ void close_window(Window *window)
     char event_data[32];
     xcb_client_message_event_t *event;
 
-    current_time = time(NULL);
+    current_time = time(nullptr);
     /* if either `WM_DELETE_WINDOW` is not supported or a close was requested
      * twice in a row
      */
@@ -191,10 +338,10 @@ void close_window(Window *window)
 /* Remove @window from the Z linked list. */
 static void unlink_window_from_z_list(Window *window)
 {
-    if (window->below != NULL) {
+    if (window->below != nullptr) {
         window->below->above = window->above;
     }
-    if (window->above != NULL) {
+    if (window->above != nullptr) {
         window->above->below = window->below;
     }
 
@@ -205,8 +352,8 @@ static void unlink_window_from_z_list(Window *window)
         top_window = window->below;
     }
 
-    window->above = NULL;
-    window->below = NULL;
+    window->above = nullptr;
+    window->below = nullptr;
 }
 
 /* Destroys given window and removes it from the window linked list. */
@@ -222,14 +369,14 @@ void destroy_window(Window *window)
 
     /* exceptional state, this should never happen */
     if (window == focus_window) {
-        focus_window = NULL;
+        focus_window = nullptr;
         LOG_ERROR("destroying window with focus\n");
     }
 
     /* this should also never happen but we check just in case */
     frame = get_frame_of_window(window);
-    if (frame != NULL) {
-        frame->window = NULL;
+    if (frame != nullptr) {
+        frame->window = nullptr;
         LOG_ERROR("window being destroyed is still within a frame\n");
     }
 
@@ -262,10 +409,8 @@ void destroy_window(Window *window)
 
     has_client_list_changed = true;
 
-    free(window->name);
-    free(window->protocols);
-    free(window->states);
-    free(window);
+    // Use delete to call the destructor
+    delete window;
 }
 
 /* Adjust given @x and @y such that it follows the @window_gravity. */
@@ -447,7 +592,7 @@ void update_window_layer(Window *window)
     }
 
     /* put windows that are transient for this window above it */
-    for (Window *below = window->below; below != NULL; ) {
+    for (Window *below = window->below; below != nullptr; ) {
         if (below->transient_for == window->client.id) {
             general_values[0] = window->client.id;
             general_values[1] = XCB_STACK_MODE_ABOVE;
@@ -456,7 +601,7 @@ void update_window_layer(Window *window)
                     general_values);
 
             unlink_window_from_z_list(below);
-            if (window->above == NULL) {
+            if (window->above == nullptr) {
                 top_window = below;
             } else {
                 below->above = window->above;
@@ -475,13 +620,13 @@ void update_window_layer(Window *window)
 /* Get the internal window that has the associated xcb window. */
 Window *get_window_of_xcb_window(xcb_window_t xcb_window)
 {
-    for (Window *window = first_window; window != NULL;
+    for (Window *window = first_window; window != nullptr;
             window = window->next) {
         if (window->client.id == xcb_window) {
             return window;
         }
     }
-    return NULL;
+    return nullptr;
 }
 
 /* Checks if @frame contains @window and checks this for all its children. */
@@ -491,12 +636,12 @@ static Frame *find_frame_recursively(Frame *frame, const Window *window)
         return frame;
     }
 
-    if (frame->left == NULL) {
-        return NULL;
+    if (frame->left == nullptr) {
+        return nullptr;
     }
 
     Frame *const find = find_frame_recursively(frame->left, window);
-    if (find != NULL) {
+    if (find != nullptr) {
         return find;
     }
     
@@ -508,17 +653,17 @@ Frame *get_frame_of_window(const Window *window)
 {
     /* shortcut: only tiling windows are within a frame */
     if (window->state.mode != WINDOW_MODE_TILING) {
-        return NULL;
+        return nullptr;
     }
 
-    for (Monitor *monitor = first_monitor; monitor != NULL;
+    for (Monitor *monitor = first_monitor; monitor != nullptr;
             monitor = monitor->next) {
         Frame *const find = find_frame_recursively(monitor->frame, window);
-        if (find != NULL) {
+        if (find != nullptr) {
             return find;
         }
     }
-    return NULL;
+    return nullptr;
 }
 
 /* Check if @window accepts input focus. */
@@ -550,10 +695,10 @@ static inline void lose_focus(Window *window)
 /* Set the window that is in focus to @window. */
 void set_focus_window(Window *window)
 {
-    if (window == NULL) {
-        if (focus_window != NULL) {
+    if (window == nullptr) {
+        if (focus_window != nullptr) {
             lose_focus(focus_window);
-            focus_window = NULL;
+            focus_window = nullptr;
         }
         return;
     }
@@ -562,9 +707,9 @@ void set_focus_window(Window *window)
 
     if (!does_window_accept_focus(window)) {
         LOG("the window can not be focused\n");
-        if (focus_window != NULL) {
+        if (focus_window != nullptr) {
             lose_focus(focus_window);
-            focus_window = NULL;
+            focus_window = nullptr;
         }
         return;
     }
@@ -574,7 +719,7 @@ void set_focus_window(Window *window)
         return;
     }
 
-    if (focus_window != NULL) {
+    if (focus_window != nullptr) {
         lose_focus(focus_window);
     }
 

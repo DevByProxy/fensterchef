@@ -1,4 +1,4 @@
-#include <inttypes.h>
+#include <cinttypes>
 
 #include <xcb/xcb_renderutil.h>
 
@@ -94,7 +94,7 @@ static void free_font(void)
     /* check if the font is already freed (we do not allow fonts with no font
      * faces)
      */
-    if (font.faces == NULL) {
+    if (font.faces == nullptr) {
         return;
     }
 
@@ -102,7 +102,7 @@ static void free_font(void)
         FT_Done_Face(font.faces[i]);
     }
     free(font.faces);
-    font.faces = NULL;
+    font.faces = nullptr;
     font.number_of_faces = 0;
     FcCharSetDestroy(font.charset);
 }
@@ -132,7 +132,7 @@ static int initialize_font_drawing(void)
     error = xcb_request_check(connection,
                 xcb_render_create_glyph_set_checked(connection,
                     font.glyphset, get_picture_format(8)));
-    if (error != NULL) {
+    if (error != nullptr) {
         LOG_ERROR("could not create a glyphset for rendering: %E\n", error);
         free(error);
         FT_Done_FreeType(font.library);
@@ -156,7 +156,7 @@ int initialize_renderer(void)
     formats_cookie = xcb_render_query_pict_formats(connection);
     formats = xcb_render_query_pict_formats_reply(connection,
             formats_cookie, &error);
-    if (formats == NULL) {
+    if (formats == nullptr) {
         LOG_ERROR("could not query picture formats: %E\n", error);
         return ERROR;
     }
@@ -172,7 +172,7 @@ int initialize_renderer(void)
             xcb_create_gc_checked(connection, stock_objects[STOCK_GC],
                 screen->root, XCB_GC_FOREGROUND | XCB_GC_BACKGROUND,
                 general_values));
-    if (error != NULL) {
+    if (error != nullptr) {
         LOG_ERROR("could not create graphics context for notifications: %E\n",
                 error);
         free(error);
@@ -186,7 +186,7 @@ int initialize_renderer(void)
             xcb_create_gc_checked(connection,
                 stock_objects[STOCK_INVERTED_GC], screen->root,
                 XCB_GC_FOREGROUND | XCB_GC_BACKGROUND, general_values));
-    if (error != NULL) {
+    if (error != nullptr) {
         LOG_ERROR("could not create inverted graphics context for notifications: %E\n",
                 error);
         free(error);
@@ -223,7 +223,7 @@ void deinitialize_renderer(void)
     struct window_picture_cache *cache, *next;
 
     for (cache = window_picture_cache_head;
-            cache != NULL; cache = next) {
+            cache != nullptr; cache = next) {
         next = cache->next;
         xcb_render_free_picture(connection, cache->picture);
         free(cache);
@@ -258,16 +258,16 @@ xcb_render_picture_t cache_window_picture(xcb_drawable_t xcb_drawable)
     xcb_generic_error_t *error;
     xcb_render_picture_t picture;
 
-    if (window_picture_cache_head == NULL) {
+    if (window_picture_cache_head == nullptr) {
         cache = xmalloc(sizeof(*cache));
         window_picture_cache_head = cache;
-        last = NULL;
+        last = nullptr;
     } else {
         for (last = window_picture_cache_head; true; last = last->next) {
             if (last->xcb_drawable == xcb_drawable) {
                 return last->picture;
             }
-            if (last->next == NULL) {
+            if (last->next == nullptr) {
                 break;
             }
         }
@@ -276,7 +276,7 @@ xcb_render_picture_t cache_window_picture(xcb_drawable_t xcb_drawable)
     }
 
     cache->xcb_drawable = xcb_drawable;
-    cache->next = NULL;
+    cache->next = nullptr;
 
     /* create a picture for rendering */
     picture = xcb_generate_id(connection);
@@ -288,12 +288,12 @@ xcb_render_picture_t cache_window_picture(xcb_drawable_t xcb_drawable)
                 find_visual_format(screen->root_visual),
                 XCB_RENDER_CP_POLY_MODE | XCB_RENDER_CP_POLY_EDGE,
                 general_values));
-    if (error != NULL) {
+    if (error != nullptr) {
         LOG_ERROR("could not create picture: %E\n", error);
         free(error);
         free(cache);
-        if (last != NULL) {
-            last->next = NULL;
+        if (last != nullptr) {
+            last->next = nullptr;
         }
         return XCB_NONE;
     }
@@ -327,7 +327,7 @@ xcb_render_picture_t create_pen(xcb_render_color_t color)
     error = xcb_request_check(connection, xcb_create_pixmap_checked(connection,
                 screen->root_depth, pixmap,
                 screen->root, 1, 1));
-    if (error != NULL) {
+    if (error != nullptr) {
         LOG_ERROR("could not create pixmap: %E\n", error);
         free(error);
         return XCB_NONE;
@@ -339,7 +339,7 @@ xcb_render_picture_t create_pen(xcb_render_color_t color)
     error = xcb_request_check(connection,
             xcb_render_create_picture_checked(connection, picture, pixmap,
                 get_picture_format(24), XCB_RENDER_CP_REPEAT, general_values));
-    if (error != NULL) {
+    if (error != nullptr) {
         LOG_ERROR("could not create picture: %E\n", error);
         free(error);
         return XCB_NONE;
@@ -362,7 +362,7 @@ static FT_Face create_font_face(FcPattern *pattern)
     if (FcPatternGet(pattern, FC_FILE, 0, &fc_file) != FcResultMatch) {
         LOG_ERROR("could not not get the font file\n");
         FcPatternDestroy(pattern);
-        return NULL;
+        return nullptr;
     }
 
     /* get index of the font within the file (files can have multiple fonts) */
@@ -377,7 +377,7 @@ static FT_Face create_font_face(FcPattern *pattern)
     if (ft_error != FT_Err_Ok) {
         LOG_ERROR("could not not create the new freetype face: %d", ft_error);
         FcPatternDestroy(pattern);
-        return NULL;
+        return nullptr;
     }
 
     /* get the transformation matrix of the font or use a default one */
@@ -389,7 +389,7 @@ static FT_Face create_font_face(FcPattern *pattern)
         matrix.xy = (FT_Fixed) (fc_matrix.u.m->xy * 0x10000);
         matrix.yx = (FT_Fixed) (fc_matrix.u.m->yx * 0x10000);
         matrix.yy = (FT_Fixed) (fc_matrix.u.m->yy * 0x10000);
-        FT_Set_Transform(face, &matrix, NULL);
+        FT_Set_Transform(face, &matrix, nullptr);
     }
 
     /* get the size based one the size or fall back to 12 */
@@ -444,7 +444,7 @@ int set_font(const utf8_t *query)
     /* reload the font configuration if any changed */
     (void) FcInitBringUptoDate();
 
-    faces = NULL;
+    faces = nullptr;
     number_of_faces = 0;
 
     while (query[0] != '\0') {
@@ -466,7 +466,7 @@ int set_font(const utf8_t *query)
         free(part);
 
         /* uses the current configuration to fill the finding pattern */
-        status = FcConfigSubstitute(NULL, finding_pattern, FcMatchPattern);
+        status = FcConfigSubstitute(nullptr, finding_pattern, FcMatchPattern);
         if (status == FcFalse) {
             LOG_ERROR("could not substitute font pattern\n");
             for (uint32_t i = 0; i < number_of_faces; i++) {
@@ -481,7 +481,7 @@ int set_font(const utf8_t *query)
         FcDefaultSubstitute(finding_pattern);
 
         /* gets the font that matches best with what is requested */
-        pattern = FcFontMatch(NULL, finding_pattern, &result);
+        pattern = FcFontMatch(nullptr, finding_pattern, &result);
 
         FcPatternDestroy(finding_pattern);
 
@@ -500,7 +500,7 @@ int set_font(const utf8_t *query)
         /* no longer need the pattern */
         FcPatternDestroy(pattern);
 
-        if (face == NULL) {
+        if (face == nullptr) {
             for (uint32_t i = 0; i < number_of_faces; i++) {
                 FT_Done_Face(faces[i]);
             }
@@ -543,22 +543,22 @@ static FT_Face create_font_face_containing_glyph(uint32_t glyph)
 	FcPatternAddCharSet(finding_pattern, FC_CHARSET, charset);
 
     /* uses the current configuration to fill the finding pattern */
-	status = FcConfigSubstitute(NULL, finding_pattern, FcMatchPattern);
+	status = FcConfigSubstitute(nullptr, finding_pattern, FcMatchPattern);
 	if (status == FcFalse) {
 		FcCharSetDestroy(charset);
-		return NULL;
+		return nullptr;
 	}
     /* this supplies the pattern with some default values if some are unset */
 	FcDefaultSubstitute(finding_pattern);
 
     /* gets the font that matches best with what is requested */
-	pattern = FcFontMatch(NULL, finding_pattern, &result);
+	pattern = FcFontMatch(nullptr, finding_pattern, &result);
 
 	FcPatternDestroy(finding_pattern);
 
 	if (result != FcResultMatch) {
 		FcCharSetDestroy(charset);
-		return NULL;
+		return nullptr;
 	}
 
 	face = create_font_face(pattern);
@@ -574,14 +574,14 @@ static FT_Face load_glyph(uint32_t glyph, FT_Int32 load_flags)
     FT_UInt glyph_index;
     FT_Face face;
 
-    face = NULL;
+    face = nullptr;
     for (uint32_t j = 0; j < font.number_of_faces; j++) {
         glyph_index = FT_Get_Char_Index(font.faces[j], glyph);
         if (glyph_index == 0) {
             continue;
         }
         if (FT_Load_Glyph(font.faces[j], glyph_index, load_flags) != FT_Err_Ok) {
-            return NULL;
+            return nullptr;
         }
         face = font.faces[j];
         return face;
@@ -589,8 +589,8 @@ static FT_Face load_glyph(uint32_t glyph, FT_Int32 load_flags)
 
     /* glyph was not found, try an alternative font face */
     face = create_font_face_containing_glyph(glyph);
-    if (face == NULL) {
-        return NULL;
+    if (face == nullptr) {
+        return nullptr;
     }
 
     /* add the face to the font face list */
@@ -599,10 +599,10 @@ static FT_Face load_glyph(uint32_t glyph, FT_Int32 load_flags)
 
     glyph_index = FT_Get_Char_Index(face, glyph);
     if (glyph_index == 0) {
-        return NULL;
+        return nullptr;
     }
     if (FT_Load_Glyph(face, glyph_index, load_flags) != FT_Err_Ok) {
-        return NULL;
+        return nullptr;
     }
     return face;
 }
@@ -616,24 +616,24 @@ static FT_Face cache_glyph(uint32_t glyph)
     uint8_t *temporary_bitmap;
 
     if (glyph == 0) {
-        return NULL;
+        return nullptr;
     }
 
     /* check if the glyph is already cached */
     if (FcCharSetHasChar(font.charset, glyph)) {
         face = load_glyph(glyph, FT_LOAD_DEFAULT);
-        if (face == NULL) {
-            return NULL;
+        if (face == nullptr) {
+            return nullptr;
         }
         return face;
     }
 
     /* find the face that has the glyph and load it */
     face = load_glyph(glyph, FT_LOAD_RENDER);
-    if (face == NULL) {
+    if (face == nullptr) {
         LOG_VERBOSE("could not load face for glyph: " COLOR(GREEN) "U+%08x\n",
                 glyph);
-        return NULL;
+        return nullptr;
     }
 
     glyph_info.x = -face->glyph->bitmap_left;
@@ -705,7 +705,7 @@ int draw_text(xcb_drawable_t xcb_drawable, const utf8_t *utf8, uint32_t length,
         return ERROR;
     }
 
-    if (rectangle != NULL) {
+    if (rectangle != nullptr) {
         xcb_render_fill_rectangles(connection, XCB_RENDER_PICT_OP_OVER,
                 picture, background_color, 1, rectangle);
     }
@@ -721,7 +721,7 @@ int draw_text(xcb_drawable_t xcb_drawable, const utf8_t *utf8, uint32_t length,
             U8_NEXT(utf8, i, length, glyph);
 
             face = cache_glyph(glyph);
-            if (face == NULL) {
+            if (face == nullptr) {
                 continue;
             }
 
@@ -770,7 +770,7 @@ void measure_text(const utf8_t *utf8, uint32_t length,
         U8_NEXT(utf8, i, length, glyph);
         /* load the char into the font */
         face = cache_glyph(glyph);
-        if (face == NULL) {
+        if (face == nullptr) {
             continue;
         }
 

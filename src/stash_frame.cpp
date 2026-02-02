@@ -7,10 +7,10 @@ static Frame *last_stashed_frame;
 /* Hide all windows in @frame and child frames. */
 static void hide_inner_windows(Frame *frame)
 {
-    if (frame->left != NULL) {
+    if (frame->left != nullptr) {
         hide_inner_windows(frame->left);
         hide_inner_windows(frame->right);
-    } else if (frame->window != NULL) {
+    } else if (frame->window != nullptr) {
         hide_window_abruptly(frame->window);
     }
 }
@@ -19,25 +19,25 @@ static void hide_inner_windows(Frame *frame)
 Frame *stash_frame_later(Frame *frame)
 {
     /* check if it is worth saving this frame */
-    if (frame->left == NULL && frame->window == NULL) {
-        return NULL;
+    if (frame->left == nullptr && frame->window == nullptr) {
+        return nullptr;
     }
 
     /* reparent the child frames */
     Frame *const stash = xcalloc(1, sizeof(*stash));
-    if (frame->left != NULL) {
+    if (frame->left != nullptr) {
         stash->split_direction = frame->split_direction;
         stash->left = frame->left;
         stash->right = frame->right;
         stash->left->parent = stash;
         stash->right->parent = stash;
 
-        frame->left = NULL;
-        frame->right = NULL;
+        frame->left = nullptr;
+        frame->right = nullptr;
     } else {
         stash->window = frame->window;
 
-        frame->window = NULL;
+        frame->window = nullptr;
     }
     return stash;
 }
@@ -45,7 +45,7 @@ Frame *stash_frame_later(Frame *frame)
 /* Links a frame into the stash linked list. */
 void link_frame_into_stash(Frame *frame)
 {
-    if (frame == NULL) {
+    if (frame == nullptr) {
         return;
     }
     frame->previous_stashed = last_stashed_frame;
@@ -58,8 +58,8 @@ Frame *stash_frame(Frame *frame)
     hide_inner_windows(frame);
 
     Frame *const stash = stash_frame_later(frame);
-    if (stash == NULL) {
-        return NULL;
+    if (stash == nullptr) {
+        return nullptr;
     }
     link_frame_into_stash(stash);
     return stash;
@@ -67,12 +67,12 @@ Frame *stash_frame(Frame *frame)
 
 /* Check if @window still exists as hidden tiling window.
  *
- * @window may be NULL or a completely random memory address and this function
+ * @window may be nullptr or a completely random memory address and this function
  *         can still handle that.
  */
 static bool is_window_valid(Window *window)
 {
-    for (Window *other = first_window; other != NULL; other = other->next) {
+    for (Window *other = first_window; other != nullptr; other = other->next) {
         if (other == window) {
             return window->state.mode == WINDOW_MODE_TILING &&
                 !window->state.is_visible;
@@ -87,12 +87,12 @@ static bool is_window_valid(Window *window)
  */
 static uint32_t validate_inner_windows(Frame *frame)
 {
-    if (frame->left != NULL) {
+    if (frame->left != nullptr) {
         return validate_inner_windows(frame->left) +
             validate_inner_windows(frame->right);
-    } else if (frame->window != NULL) {
+    } else if (frame->window != nullptr) {
         if (!is_window_valid(frame->window)) {
-            frame->window = NULL;
+            frame->window = nullptr;
             return 0;
         }
         return 1;
@@ -103,7 +103,7 @@ static uint32_t validate_inner_windows(Frame *frame)
 /* Frees @frame and all child frames. */
 static void free_frame_recursively(Frame *frame)
 {
-    if (frame->left != NULL) {
+    if (frame->left != nullptr) {
         free_frame_recursively(frame->left);
         free_frame_recursively(frame->right);
     }
@@ -120,7 +120,7 @@ Frame *pop_stashed_frame(void)
      * frame got invalidated because it lost all inner window and is now
      * completely empty
      */
-    while (pop != NULL) {
+    while (pop != nullptr) {
         if (validate_inner_windows(pop) > 0) {
             break;
         }
@@ -130,8 +130,8 @@ Frame *pop_stashed_frame(void)
         free_frame_recursively(free_me);
     }
 
-    if (pop == NULL) {
-        last_stashed_frame = NULL;
+    if (pop == nullptr) {
+        last_stashed_frame = nullptr;
     } else {
         last_stashed_frame = pop->previous_stashed;
     }
@@ -141,10 +141,10 @@ Frame *pop_stashed_frame(void)
 /* Show all windows in @frame and child frames. */
 static void show_inner_windows(Frame *frame)
 {
-    if (frame->left != NULL) {
+    if (frame->left != nullptr) {
         show_inner_windows(frame->left);
         show_inner_windows(frame->right);
-    } else if (frame->window != NULL) {
+    } else if (frame->window != nullptr) {
         reload_frame(frame);
         frame->window->state.is_visible = true;
     }
@@ -156,7 +156,7 @@ void fill_void_with_stash(Frame *frame)
     Frame *pop;
 
     pop = pop_stashed_frame();
-    if (pop == NULL) {
+    if (pop == nullptr) {
         return;
     }
     replace_frame(frame, pop);

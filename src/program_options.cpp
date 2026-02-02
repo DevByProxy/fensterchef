@@ -1,4 +1,4 @@
-#include <string.h>
+#include <cstring>
 
 #include "fensterchef.h"
 #include "program_options.h"
@@ -18,7 +18,7 @@ typedef enum option {
 
 /* context the parser needs to parse the options */
 static const struct parse_option {
-    /* the long option after `--`, may be `NULL` */
+    /* the long option after `--`, may be `nullptr` */
     const char *long_option;
     /* a short form of the option after `-` */
     char short_option;
@@ -30,7 +30,7 @@ static const struct parse_option {
     [OPTION_HELP] = { "help", 'h', 0 },
     [OPTION_USAGE] = { "usage", '\0', 0 },
     [OPTION_VERSION] = { "version", 'v', 0 },
-    [OPTION_VERBOSITY] = { NULL, 'd', 1 },
+    [OPTION_VERBOSITY] = { nullptr, 'd', 1 },
     [OPTION_VERBOSE] = { "verbose", '\0', 0 },
     [OPTION_CONFIG] = { "config", 'c', 1 },
 };
@@ -143,19 +143,19 @@ int parse_program_arguments(int argc, char **argv)
 
             /* check for a follong `=` and make it a null terminator */
             equality = strchr(argument, '=');
-            if (equality != NULL) {
+            if (equality != nullptr) {
                 equality[0] = '\0';
             }
 
             /* try to find the long option */
             for (; option < SIZE(parse_options); option++) {
-                if (parse_options[option].long_option == NULL) {
+                if (parse_options[option].long_option == nullptr) {
                     continue;
                 }
                 if (strcmp(parse_options[option].long_option,
                             &argument[0]) == 0) {
                     /* either go the end of the argument... */
-                    if (equality == NULL) {
+                    if (equality == nullptr) {
                         argument += strlen(argument);
                     /* ...or jump after the equals sign */
                     } else {
@@ -188,7 +188,7 @@ int parse_program_arguments(int argc, char **argv)
             return ERROR;
         }
 
-        value = NULL;
+        value = nullptr;
 
         /* if the option expects no arguments */
         if (parse_options[option].type == 0) {

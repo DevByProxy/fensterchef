@@ -1,5 +1,5 @@
 #include <ctype.h>
-#include <string.h>
+#include <cstring>
 
 /* Get the length of @string up to a maximum of @max_length. */
 size_t strnlen(const char *string, size_t max_length)
@@ -7,7 +7,7 @@ size_t strnlen(const char *string, size_t max_length)
     char *null_position;
 
     null_position = memchr(string, '\0', max_length);
-    if (null_position == NULL) {
+    if (null_position == nullptr) {
         return max_length;
     }
     return null_position - string;

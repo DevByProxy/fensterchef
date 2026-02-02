@@ -1,4 +1,4 @@
-#include <inttypes.h>
+#include <cinttypes>
 
 #include "configuration.h"
 #include "fensterchef.h"
@@ -25,12 +25,12 @@ Frame *get_frame_at_position(int32_t x, int32_t y)
 {
     Frame *frame;
 
-    for (Monitor *monitor = first_monitor; monitor != NULL;
+    for (Monitor *monitor = first_monitor; monitor != nullptr;
             monitor = monitor->next) {
         frame = monitor->frame;
         if (is_point_in_frame(frame, x, y)) {
             /* recursively move into child frame until we are at a leaf */
-            while (frame->left != NULL) {
+            while (frame->left != nullptr) {
                 if (is_point_in_frame(frame->left, x, y)) {
                     frame = frame->left;
                     continue;
@@ -39,12 +39,12 @@ Frame *get_frame_at_position(int32_t x, int32_t y)
                     frame = frame->right;
                     continue;
                 }
-                return NULL;
+                return nullptr;
             }
             return frame;
         }
     }
-    return NULL;
+    return nullptr;
 }
 
 /* Set the size of a frame, this also resizes the inner frames and windows. */
@@ -64,7 +64,7 @@ void resize_frame(Frame *frame, int32_t x, int32_t y,
     right = frame->right;
 
     /* check if the frame has children */
-    if (left == NULL) {
+    if (left == nullptr) {
         return;
     }
 
@@ -93,19 +93,19 @@ void resize_frame(Frame *frame, int32_t x, int32_t y,
 void replace_frame(Frame *frame, Frame *with)
 {
     /* reparent the child frames */
-    if (with->left != NULL) {
+    if (with->left != nullptr) {
         frame->split_direction = with->split_direction;
         frame->left = with->left;
         frame->right = with->right;
         frame->left->parent = frame;
         frame->right->parent = frame;
 
-        with->left = NULL;
-        with->right = NULL;
+        with->left = nullptr;
+        with->right = nullptr;
     } else {
         frame->window = with->window;
 
-        with->window = NULL;
+        with->window = nullptr;
     }
 
     /* reload the frame recursively */
@@ -148,7 +148,7 @@ void reload_frame(Frame *frame)
 {
     Extents gaps;
 
-    if (frame->window == NULL) {
+    if (frame->window == nullptr) {
         return;
     }
 
@@ -172,7 +172,7 @@ void set_focus_frame(Frame *frame)
 
     focus_frame = frame;
 
-    set_notification(frame->left == NULL ? (utf8_t*) "Current frame" :
+    set_notification(frame->left == nullptr ? (utf8_t*) "Current frame" :
             (utf8_t*) "Current frames",
             focus_frame->x + focus_frame->width / 2,
             focus_frame->y + focus_frame->height / 2);
@@ -183,14 +183,14 @@ void set_focus_frame(Frame *frame)
 /* Focus @window and the frame it is contained in if any. */
 void set_focus_window_with_frame(Window *window)
 {
-    if (window == NULL) {
-        set_focus_window(NULL);
+    if (window == nullptr) {
+        set_focus_window(nullptr);
     /* if the frame the window is contained in is already focused */
     } else if (focus_frame->window == window) {
         set_focus_window(window);
     } else {
         Frame *const frame = get_frame_of_window(window);
-        if (frame == NULL) {
+        if (frame == nullptr) {
             set_focus_window(window);
         } else {
             set_focus_frame(frame);
@@ -201,7 +201,7 @@ void set_focus_window_with_frame(Window *window)
 /* Get the frame above the given one that has no parent. */
 Frame *get_root_frame(Frame *frame)
 {
-    while (frame->parent != NULL) {
+    while (frame->parent != nullptr) {
         frame = frame->parent;
     }
     return frame;

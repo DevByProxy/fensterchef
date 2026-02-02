@@ -1,7 +1,7 @@
 #include <errno.h>
 #include <stdarg.h>
-#include <stdio.h>
-#include <string.h>
+#include <cstdio>
+#include <cstring>
 
 #include "utility.h"
 #include "xalloc.h"
@@ -11,10 +11,10 @@ void *xmalloc(size_t size)
     void *ptr;
 
     if (size == 0) {
-        return NULL;
+        return nullptr;
     }
     ptr = malloc(size);
-    if (ptr == NULL) {
+    if (ptr == nullptr) {
         fprintf(stderr, "malloc(%zu): %s\n",
                 size, strerror(errno));
         exit(EXIT_FAILURE);
@@ -27,10 +27,10 @@ void *xcalloc(size_t nmemb, size_t size)
     void *ptr;
 
     if (nmemb == 0 || size == 0) {
-        return NULL;
+        return nullptr;
     }
     ptr = calloc(nmemb, size);
-    if (ptr == NULL) {
+    if (ptr == nullptr) {
         fprintf(stderr, "calloc(%zu, %zu): %s\n",
                 nmemb, size, strerror(errno));
         exit(EXIT_FAILURE);
@@ -42,10 +42,10 @@ void *xrealloc(void *ptr, size_t size)
 {
     if (size == 0) {
         free(ptr);
-        return NULL;
+        return nullptr;
     }
     ptr = realloc(ptr, size);
-    if (ptr == NULL) {
+    if (ptr == nullptr) {
         fprintf(stderr, "realloc(%p, %zu): %s\n",
                 ptr, size, strerror(errno));
         exit(EXIT_FAILURE);
@@ -59,7 +59,7 @@ void *xreallocarray(void *ptr, size_t nmemb, size_t size)
 
     if (nmemb == 0 || size == 0) {
         free(ptr);
-        return NULL;
+        return nullptr;
     }
     if (__builtin_mul_overflow(nmemb, size, &n_bytes)) {
         fprintf(stderr, "reallocarray(%p, %zu, %zu): integer overflow\n",
@@ -67,7 +67,7 @@ void *xreallocarray(void *ptr, size_t nmemb, size_t size)
         exit(EXIT_FAILURE);
     }
     ptr = realloc(ptr, n_bytes);
-    if (ptr == NULL) {
+    if (ptr == nullptr) {
         fprintf(stderr, "reallocarray(%p, %zu, %zu): %s\n",
                 ptr, nmemb, size, strerror(errno));
         exit(EXIT_FAILURE);
@@ -80,11 +80,11 @@ void *xmemdup(const void *ptr, size_t size)
     char *p_dup;
 
     if (size == 0) {
-        return NULL;
+        return nullptr;
     }
 
     p_dup = malloc(size);
-    if (p_dup == NULL) {
+    if (p_dup == nullptr) {
         fprintf(stderr, "xmemdup(%p, %zu): %s\n",
                 ptr, size, strerror(errno));
         exit(EXIT_FAILURE);
@@ -125,7 +125,7 @@ char *xasprintf(const char *format, ...)
 
     /* get the length of the expanded format */
     va_start(list, format);
-    total_size = vsnprintf(NULL, 0, format, list);
+    total_size = vsnprintf(nullptr, 0, format, list);
     va_end(list);
 
     if (total_size < 0) {
