@@ -6,7 +6,7 @@ TEST_PACKAGES := xcb-errors
 
 # Compiler flags
 DEBUG_FLAGS := -DDEBUG -g -fsanitize=address -pg
-CXX_FLAGS := -Iinclude -std=c++17 $(shell pkg-config --cflags $(PACKAGES)) -Wall -Wextra -Wpedantic -Werror -Wno-format-zero-length
+CXX_FLAGS := -Isrc -std=c++17 $(shell pkg-config --cflags $(PACKAGES)) -Wall -Wextra -Wpedantic -Werror -Wno-format-zero-length
 RELEASE_FLAGS := -O3
 
 # Libraries
