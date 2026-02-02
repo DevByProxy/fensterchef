@@ -1,7 +1,7 @@
 #ifndef XALLOC_H
 #define XALLOC_H
 
-#include <stdlib.h>
+#include <cstdlib>
 
 /* Like `malloc()` but exit when the allocation fails. */
 void *xmalloc(size_t size);

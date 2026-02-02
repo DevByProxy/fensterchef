@@ -1,7 +1,7 @@
 #ifndef UTF8_H
 #define UTF8_H
 
-#include <stdint.h>
+#include <cstdint>
 
 typedef uint8_t utf8_t;
 

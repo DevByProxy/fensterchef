@@ -1,8 +1,8 @@
 #ifndef FENSTERCHEF_H
 #define FENSTERCHEF_H
 
-#include <stdbool.h>
-#include <stdio.h>
+#include <cstdbool>
+#include <cstdio>
 
 #include "utf8.h"
 

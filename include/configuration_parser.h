@@ -1,8 +1,8 @@
 #ifndef CONFIGURATION_PARSER_H
 #define CONFIGURATION_PARSER_H
 
-#include <stdbool.h>
-#include <stdio.h>
+#include <cstdbool>
+#include <cstdio>
 
 #include "bits/configuration_parser_data_type.h"
 

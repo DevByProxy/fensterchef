@@ -1,7 +1,7 @@
 #ifndef WINDOW_STATE_H
 #define WINDOW_STATE_H
 
-#include <stdbool.h>
+#include <cstdbool>
 
 #include "bits/window_typedef.h"
 

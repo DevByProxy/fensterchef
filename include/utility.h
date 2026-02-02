@@ -3,8 +3,8 @@
 
 #include <ctype.h>
 
-#include <stdbool.h>
-#include <stdint.h>
+#include <cstdbool>
+#include <cstdint>
 
 #include "xalloc.h"
 

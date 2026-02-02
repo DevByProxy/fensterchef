@@ -6,6 +6,7 @@ Fensterchef is a lightweight, lightning-fast window manager for Linux, focused o
 🔹 Lightweight & Fast: Minimal overhead ensures smooth performance, even on low-end hardware. </br>
 🔹 Highly Customizable: Configure Fensterchef easily with a simple configuration file. </br>
 🔹 Keyboard-Centric: Navigate your workspace effortlessly with intuitive shortcuts. </br>
+🔹 **Modern C++**: Recently modernized to C++17 with Object-Oriented Programming principles. </br>
 
 ## Gallery
 
@@ -34,6 +35,19 @@ exec /usr/bin/fensterchef -dinfo 2>~/.local/share/fensterchef
 Alternatively put it this into the `~/.xinitrc`.
 
 *How to get fensterchef to run exactly varies on your environment.*
+
+## Development
+
+### Modern C++ Architecture
+
+Fensterchef has been modernized to use C++17 with Object-Oriented Programming principles. Key improvements include:
+
+- **RAII**: Automatic resource management through constructors/destructors
+- **Type Safety**: Strong typing with `enum class`, `nullptr`, and `constexpr`
+- **OOP**: Core components (Window, Frame, Monitor) are now proper C++ classes
+- **Memory Safety**: Replaced manual memory management with C++ `new`/`delete`
+
+For detailed information about the modernization, see [MODERNIZATION.md](MODERNIZATION.md).
 
 ## Bugs
 

@@ -1,7 +1,7 @@
 #ifndef LOG_H
 #define LOG_H
 
-#include <stdio.h>
+#include <cstdio>
 
 #include "utility.h"
 
