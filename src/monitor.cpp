@@ -20,14 +20,36 @@
 static bool randr_enabled = false;
 
 /* the first monitor in the monitor linked list */
-Monitor *first_monitor;
+Monitor *first_monitor = nullptr;
+
+/* Monitor constructor - initializes monitor with default values */
+Monitor::Monitor()
+    : name(nullptr)
+    , x(0)
+    , y(0)
+    , width(0)
+    , height(0)
+    , frame(nullptr)
+    , next(nullptr)
+{
+    std::memset(&strut, 0, sizeof(strut));
+}
+
+/* Monitor destructor */
+Monitor::~Monitor()
+{
+    if (name != nullptr) {
+        free(name);
+        name = nullptr;
+    }
+}
 
 /* Create a screenless monitor. */
 static Monitor *create_monitor(const char *name, uint32_t name_len)
 {
     Monitor *monitor;
 
-    monitor = xcalloc(1, sizeof(*monitor));
+    monitor = new Monitor();
     monitor->name = xstrndup(name, name_len);
     return monitor;
 }
@@ -350,10 +372,9 @@ void merge_monitors(Monitor *monitors)
 
             /* stash away the frame */
             stash_frame(monitor->frame);
-            free(monitor->frame);
+            delete monitor->frame;
         }
-        free(monitor->name);
-        free(monitor);
+        delete monitor;
     }
 
     first_monitor = monitors;
@@ -365,7 +386,7 @@ void merge_monitors(Monitor *monitors)
             if (configuration.tiling.auto_fill_void) {
                 monitor->frame = pop_stashed_frame();
             } else {
-                monitor->frame = xcalloc(1, sizeof(*monitor->frame));
+                monitor->frame = new Frame();
             }
             /* set the initial size */
             monitor->frame->x = monitor->x;

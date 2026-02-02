@@ -13,8 +13,8 @@ void split_frame(Frame *split_from, frame_split_direction_t direction)
     Frame *left, *right;
     Frame *next_focus_frame;
 
-    left = xcalloc(1, sizeof(*left));
-    right = xcalloc(1, sizeof(*right));
+    left = new Frame();
+    right = new Frame();
 
     /* let `left` take the children or window */
     if (split_from->left != nullptr) {
@@ -267,7 +267,7 @@ int remove_void(Frame *frame)
 
     LOG("frame %F was removed\n", frame);
 
-    free(frame);
+    delete frame;
 
     const int x = parent->x + parent->width / 2;
     const int y = parent->y + parent->height / 2;

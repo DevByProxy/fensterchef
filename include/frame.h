@@ -2,8 +2,7 @@
 #define FRAME_H
 
 #include <xcb/xcb.h>
-
-#include <stdbool.h>
+#include <cstdint>
 
 #include "bits/frame_typedef.h"
 #include "bits/window_typedef.h"
@@ -11,32 +10,76 @@
 #include "utility.h"
 
 /* the minimum width or height of a frame */
-#define FRAME_MINIMUM_SIZE 12
+constexpr uint32_t FRAME_MINIMUM_SIZE = 12;
 
 /* an edge of the frame */
+enum class FrameEdge {
+    LEFT,
+    TOP,
+    RIGHT,
+    BOTTOM,
+};
+
+/* For backward compatibility */
 typedef enum {
-    FRAME_EDGE_LEFT,
-    FRAME_EDGE_TOP,
-    FRAME_EDGE_RIGHT,
-    FRAME_EDGE_BOTTOM,
+    FRAME_EDGE_LEFT = static_cast<int>(FrameEdge::LEFT),
+    FRAME_EDGE_TOP = static_cast<int>(FrameEdge::TOP),
+    FRAME_EDGE_RIGHT = static_cast<int>(FrameEdge::RIGHT),
+    FRAME_EDGE_BOTTOM = static_cast<int>(FrameEdge::BOTTOM),
 } frame_edge_t;
 
 /* a direction to split a frame in */
-typedef enum {
+enum class FrameSplitDirection {
     /* the frame was split horizontally (children are left and right) */
-    FRAME_SPLIT_HORIZONTALLY,
+    HORIZONTALLY,
     /* the frame was split vertically (children are up and down) */
-    FRAME_SPLIT_VERTICALLY,
+    VERTICALLY,
+};
+
+/* For backward compatibility */
+typedef enum {
+    FRAME_SPLIT_HORIZONTALLY = static_cast<int>(FrameSplitDirection::HORIZONTALLY),
+    FRAME_SPLIT_VERTICALLY = static_cast<int>(FrameSplitDirection::VERTICALLY),
 } frame_split_direction_t;
 
 /* Frames are used to partition a monitor into multiple rectangular regions.
  *
  * When a frame has one child, it must have a second one, so either BOTH left
- * AND right are NULL or neither are NULL.
- * `parent` is NULL when the frame is a root frame.
+ * AND right are nullptr or neither are nullptr.
+ * `parent` is nullptr when the frame is a root frame.
  */
-struct frame {
-    /* the window inside the frame, may be NULL */
+class Frame {
+public:
+    /* Constructor */
+    Frame();
+    
+    /* Destructor */
+    ~Frame();
+    
+    /* Delete copy constructor and copy assignment to prevent copying */
+    Frame(const Frame&) = delete;
+    Frame& operator=(const Frame&) = delete;
+    
+    /* Check if the given point is within this frame */
+    bool containsPoint(int32_t px, int32_t py) const;
+    
+    /* Set the size of the frame, this also resizes the inner frames and windows */
+    void resize(int32_t new_x, int32_t new_y, uint32_t new_width, uint32_t new_height);
+    
+    /* Get the gaps the frame applies to its inner window */
+    void getGaps(Extents *gaps) const;
+    
+    /* Resizes the inner window to fit within the frame */
+    void reload();
+    
+    /* Set this frame in focus, this also focuses the inner window if it exists */
+    void setFocus();
+    
+    /* Get the frame above this one that has no parent */
+    Frame* getRoot();
+    
+    /* Public members accessed by window management code */
+    /* the window inside the frame, may be nullptr */
     Window *window;
 
     /* coordinates and size of the frame */
@@ -71,7 +114,7 @@ bool is_point_in_frame(const Frame *frame, int32_t x, int32_t y);
 
 /* Get a frame at given position.
  *
- * @return a LEAF frame at given position or NULL when there is none.
+ * @return a LEAF frame at given position or nullptr when there is none.
  */
 Frame *get_frame_at_position(int32_t x, int32_t y);
 

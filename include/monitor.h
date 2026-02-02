@@ -2,13 +2,26 @@
 #define MONITOR_H
 
 #include <xcb/randr.h>
+#include <cstdint>
 
 #include "bits/frame_typedef.h"
 
 #include "x11_management.h"
 
 /* A monitor is a rectangular region tied to a screen. */
-typedef struct monitor {
+class Monitor {
+public:
+    /* Constructor */
+    Monitor();
+    
+    /* Destructor */
+    ~Monitor();
+    
+    /* Delete copy constructor and copy assignment */
+    Monitor(const Monitor&) = delete;
+    Monitor& operator=(const Monitor&) = delete;
+    
+    /* Public members accessed by window management code */
     /* name of the monitor, used as key */
     char *name;
 
@@ -25,18 +38,18 @@ typedef struct monitor {
     Frame *frame;
 
     /* next monitor in the linked list */
-    struct monitor *next;
-} Monitor;
+    Monitor *next;
+};
 
 /* the first monitor in the monitor linked list */
 extern Monitor *first_monitor;
 
 /* Try to initialize randr and the internal monitor linked list. */
-void initialize_monitors(void);
+void initialize_monitors();
 
 /* Get the monitor that overlaps given rectangle the most.
  *
- * @return NULL if no monitor intersects the rectangle at all.
+ * @return nullptr if no monitor intersects the rectangle at all.
  */
 Monitor *get_monitor_from_rectangle(int32_t x, int32_t y,
         uint32_t width, uint32_t height);
@@ -52,13 +65,13 @@ Window *get_window_covering_monitor(Monitor *monitor);
 
 /* Gets a list of monitors that are associated to the screen.
  *
- * @return NULL when randr is not supported or when there are no monitors.
+ * @return nullptr when randr is not supported or when there are no monitors.
  */
-Monitor *query_monitors(void);
+Monitor *query_monitors();
 
 /* Merges given monitor linked list into the screen's monitor list.
  *
- * @monitors may be NULL to indicate no monitors are there or randr is not
+ * @monitors may be nullptr to indicate no monitors are there or randr is not
  *           supported.
  */
 void merge_monitors(Monitor *monitors);

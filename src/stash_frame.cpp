@@ -107,7 +107,7 @@ static void free_frame_recursively(Frame *frame)
         free_frame_recursively(frame->left);
         free_frame_recursively(frame->right);
     }
-    free(frame);
+    delete frame;
 }
 
 /* Put the child frames or window into @frame of the recently saved frame. */

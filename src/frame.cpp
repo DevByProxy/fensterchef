@@ -10,7 +10,65 @@
 #include "window.h"
 
 /* the currently selected/focused frame */
-Frame *focus_frame;
+Frame *focus_frame = nullptr;
+
+/* Frame constructor - initializes frame with default values */
+Frame::Frame()
+    : window(nullptr)
+    , x(0)
+    , y(0)
+    , width(0)
+    , height(0)
+    , split_direction(FRAME_SPLIT_HORIZONTALLY)
+    , parent(nullptr)
+    , left(nullptr)
+    , right(nullptr)
+    , previous_stashed(nullptr)
+    , next_secondary_stashed(nullptr)
+{
+}
+
+/* Frame destructor */
+Frame::~Frame()
+{
+    // Cleanup is handled by the window manager
+}
+
+/* Check if the given point is within this frame */
+bool Frame::containsPoint(int32_t px, int32_t py) const
+{
+    return is_point_in_frame(this, px, py);
+}
+
+/* Set the size of the frame */
+void Frame::resize(int32_t new_x, int32_t new_y, uint32_t new_width, uint32_t new_height)
+{
+    resize_frame(this, new_x, new_y, new_width, new_height);
+}
+
+/* Get the gaps the frame applies to its inner window */
+void Frame::getGaps(Extents *gaps) const
+{
+    get_frame_gaps(const_cast<Frame*>(this), gaps);
+}
+
+/* Resizes the inner window to fit within the frame */
+void Frame::reload()
+{
+    reload_frame(this);
+}
+
+/* Set this frame in focus */
+void Frame::setFocus()
+{
+    set_focus_frame(this);
+}
+
+/* Get the frame above this one that has no parent */
+Frame* Frame::getRoot()
+{
+    return get_root_frame(this);
+}
 
 /* Check if the given point is within the given frame. */
 bool is_point_in_frame(const Frame *frame, int32_t x, int32_t y)
