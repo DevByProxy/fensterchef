@@ -271,7 +271,7 @@ xcb_render_picture_t cache_window_picture(xcb_drawable_t xcb_drawable)
                 break;
             }
         }
-        cache = xmalloc(sizeof(*window_picture_cache_head));
+        cache = static_cast<WindowPictureCache*>(xmalloc(sizeof(*cache)));
         last->next = cache;
     }
 
@@ -416,7 +416,7 @@ static FT_Face create_font_face(FcPattern *pattern)
      */
     if (FT_Set_Char_Size(face, 0, fc_size.u.d * 64,
                 horizontal_dpi, vertical_dpi) != FT_Err_Ok) {
-        /* fallback to setting the first availabe size, this must be a font
+        /* fallback to setting the first available size, this must be a font
          * without support for resizing
          */
         FT_Select_Size(face, 0);

@@ -465,7 +465,7 @@ void adjust_for_window_gravity(Monitor *monitor, int32_t *x, int32_t *y,
     /* attach to the bottom right */
     case XCB_GRAVITY_SOUTH_EAST:
         *x = monitor->x + monitor->width - width;
-        *y = monitor->y + monitor->width - height;
+        *y = monitor->y + monitor->height - height;
         break;
 
     /* nothing to do */
