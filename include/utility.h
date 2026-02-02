@@ -1,9 +1,7 @@
 #ifndef UTIL_H
 #define UTIL_H
 
-#include <ctype.h>
-
-#include <cstdbool>
+#include <cctype>
 #include <cstdint>
 
 #include "xalloc.h"

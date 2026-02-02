@@ -1,8 +1,6 @@
 #ifndef WINDOW_STATE_H
 #define WINDOW_STATE_H
 
-#include <cstdbool>
-
 #include "bits/window_typedef.h"
 
 /* the mode of the window */
