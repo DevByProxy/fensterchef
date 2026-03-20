@@ -1,43 +1,32 @@
-# Fensterchef – The X11 Tiling Window Manager for Linux
+# Fensterchef – The X11 Tiling Window Manager
 
-Fensterchef is a lightweight, lightning-fast window manager for Linux, focused on manual tiling.
+Fensterchef is a keyboard-centric tiling window manager for unix systems using
+X11.  It is meant to be highly configurable both through a simple configuration
+language and the source code made by using clean code principles.
 
-🔹 Manual Tiling: Arrange your windows exactly how you want — no rigid grids or enforced layouts. </br>
-🔹 Lightweight & Fast: Minimal overhead ensures smooth performance, even on low-end hardware. </br>
-🔹 Highly Customizable: Configure Fensterchef easily with a simple configuration file. </br>
-🔹 Keyboard-Centric: Navigate your workspace effortlessly with intuitive shortcuts. </br>
+### Installation
 
-## Gallery
+Depends on: X11, Xrandr>=1.2, Xcursor and Xft
 
-![fensterchef](./images/fensterchef.png)
-![fensterchef](./images/fensterchef2.png)
+### Build from source
 
-## Installation
+Building requires: coreutils, gzip, pkgconf, a C99 compiler and a unix shell
 
-Get started immediately! Open a terminal and clone the repository:
-```sh
-git clone https://github.com/JulianBMW/fensterchef.git
 ```
-Then simply type the following and enter your password.
-```sh
-sudo make install
+git clone https://github.com/DevByProxy/fensterchef.git &&
+cd fensterchef &&
+sudo ./make install &&
+man fensterchef
 ```
 
-Now you have the **fensterchef** executable (`/usr/bin/fensterchef`)
-and the manual page (`/usr/share/man/man1/fensterchef.1.gz`).
+### AUR helper
 
-If you are using a login manager, you can simply put this at the end of your `~/.xsession`:
 ```
-mkdir -p ~/.local/share/fensterchef
-exec /usr/bin/fensterchef -dinfo 2>~/.local/share/fensterchef
+pacaur -S fensterchef &&
+man fensterchef
 ```
-Alternatively put it this into the `~/.xinitrc`.
 
-*How to get fensterchef to run exactly varies on your environment.*
+## Information
 
-## Bugs
+Fensterchef was a personal project developed by [TheProgrammingSauce](https://github.com/thepsauce) and DevByProxy. It is no longer actively maintained.
 
-Report any issues directly to us over the Github issues tab.
-
-An issue should start with the version, the rest is up to you. Try to add steps
-to reproduce and the relevant excerpts from the log.

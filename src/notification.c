@@ -1,0 +1,251 @@
+#include <unistd.h>
+
+#include "configuration.h"
+#include "log.h"
+#include "monitor.h"
+#include "notification.h"
+#include "x11/display.h"
+#include "x11/synchronize.h"
+
+/* notification window for messages */
+Notification *system_notification;
+
+/* notification window for errors */
+Notification *error_notification;
+
+/* Initialize the notification window. */
+static int initialize_notification(Notification *notification)
+{
+    XSetWindowAttributes attributes;
+
+    notification->reference.x = -1;
+    notification->reference.y = -1;
+    notification->reference.width = 1;
+    notification->reference.height = 1;
+    notification->reference.border_width = configuration.border_size;
+    notification->reference.border = configuration.foreground;
+    notification->foreground = configuration.foreground;
+    attributes.border_pixel = notification->reference.border;
+    /* indicate to not manage the window */
+    attributes.override_redirect = True;
+    attributes.event_mask = ButtonPressMask | ExposureMask;
+    notification->reference.id = XCreateWindow(display,
+                DefaultRootWindow(display), notification->reference.x,
+                notification->reference.y, notification->reference.width,
+                notification->reference.height,
+                notification->reference.border_width, CopyFromParent,
+                InputOutput, (Visual*) CopyFromParent,
+                CWBorderPixel | CWOverrideRedirect | CWEventMask,
+                &attributes);
+
+    if (notification->reference.id == None) {
+        LOG_ERROR("failed creating notification window\n");
+        return ERROR;
+    }
+
+    const char *const notification_name = "[fensterchef] notification";
+    XStoreName(display, notification->reference.id, notification_name);
+
+    /* create an XftDraw object for text rendering */
+    notification->xft_draw = XftDrawCreate(display, notification->reference.id,
+            DefaultVisual(display, DefaultScreen(display)),
+            DefaultColormap(display, DefaultScreen(display)));
+
+    if (notification->xft_draw == NULL) {
+        LOG_ERROR("could not create XftDraw for the notification window\n");
+        XDestroyWindow(display, notification->reference.id);
+        return ERROR;
+    }
+    return OK;
+}
+
+/* Create a notification window for showing text. */
+Notification *create_notification(void)
+{
+    Notification *notification;
+
+    ALLOCATE_ZERO(notification, 1);
+
+    if (initialize_notification(notification) == ERROR) {
+        free(notification);
+        return NULL;
+    }
+
+    return notification;
+}
+
+/* Show a notification window. */
+static void show_notification(Notification *notification,
+        const utf8_t *message, int x, int y)
+{
+    FcChar32 *glyphs;
+    int glyph_count;
+    Text *text;
+
+    if (notification->text != NULL) {
+        destroy_text(notification->text);
+    }
+
+    glyphs = get_glyphs(message, -1, &glyph_count);
+
+    text = create_text(glyphs, glyph_count);
+
+    /* add the padding */
+    text->x += configuration.text_padding / 2;
+    text->y += configuration.text_padding / 2;
+    text->width += configuration.text_padding;
+    text->height += configuration.text_padding;
+
+    /* center the text window */
+    x -= text->width / 2;
+    y -= text->height / 2;
+
+    /* attempt to put the window fully in bounds */
+    const unsigned
+        display_width = DisplayWidth(display, DefaultScreen(display)),
+        display_height = DisplayHeight(display, DefaultScreen(display));
+    if (x < 0) {
+        x = 0;
+    } else if ((unsigned) x + text->width + configuration.border_size * 2 >=
+            display_width) {
+        x = display_width - text->width - configuration.border_size * 2;
+    }
+    if (y < 0) {
+        y = 0;
+    } else if ((unsigned) y + text->height + configuration.border_size * 2 >=
+            display_height) {
+        y = display_height - text->height - configuration.border_size * 2;
+    }
+
+    /* set the window size, position and set it above */
+    configure_client(&notification->reference,
+            x, y, text->width, text->height,
+            notification->reference.border_width,
+            configuration.border_radius, configuration.border_radius_inner);
+
+    /* show the window */
+    map_client_raised(&notification->reference);
+
+    LOG_DEBUG("showed notification: %s at %r with offset %P\n",
+            message,
+            notification->reference.x, notification->reference.y,
+            notification->reference.width, notification->reference.height,
+            text->x, text->y);
+
+    notification->text = text;
+}
+
+/* Render the context of a notification window. */
+static void render_notification(Notification *notification)
+{
+    XftColor text_color, background_color;
+
+    if (allocate_xft_color(notification->foreground, &text_color) == ERROR) {
+        return;
+    }
+
+    if (allocate_xft_color(notification->background,
+                &background_color) == ERROR) {
+        free_xft_color(&text_color);
+        return;
+    }
+
+    /* draw background and text */
+    XftDrawRect(notification->xft_draw, &background_color,
+            0, 0, notification->text->width, notification->text->height);
+    draw_text(notification->xft_draw, &text_color, 0, 0, notification->text);
+
+    free_xft_color(&background_color);
+    free_xft_color(&text_color);
+}
+
+/* Handle an incoming X event for all notification windows. */
+void handle_notification_event(XEvent *event)
+{
+    switch (event->type) {
+    case ButtonPress: {
+        XButtonEvent *const button = &event->xbutton;
+        if (button->button != Button1) {
+            break;
+        }
+
+        if (system_notification != NULL &&
+                button->window == system_notification->reference.id) {
+            alarm(0);
+            unmap_client(&system_notification->reference);
+        } else if (error_notification != NULL &&
+                button->window == error_notification->reference.id) {
+            unmap_client(&error_notification->reference);
+        }
+        break;
+    }
+
+    case Expose: {
+        XExposeEvent *const expose = &event->xexpose;
+        if (system_notification != NULL &&
+                expose->window == system_notification->reference.id) {
+            render_notification(system_notification);
+        } else if (error_notification != NULL &&
+                expose->window == error_notification->reference.id) {
+            render_notification(error_notification);
+        }
+        break;
+    }
+    }
+}
+
+/* Show the notification window with given message at given coordinates for
+ * a duration in seconds specified in the configuration.
+ */
+void set_system_notification(const utf8_t *message, int x, int y)
+{
+    if (configuration.notification_duration == 0) {
+        return;
+    }
+
+    /* initialize the notification window if not done already */
+    if (system_notification == NULL) {
+        system_notification = create_notification();
+        if (system_notification == NULL) {
+            return;
+        }
+    }
+
+    /* change border color and size of the notification window */
+    change_client_attributes(&system_notification->reference,
+            configuration.foreground);
+    system_notification->foreground = configuration.foreground;
+    system_notification->background = configuration.background;
+
+    show_notification(system_notification, message, x, y);
+    /* set an alarm to trigger after the specified seconds */
+    alarm(configuration.notification_duration);
+}
+
+/* Show a notification in warning colors at the center of the current
+ * monitor.
+ */
+void set_error_notification(const utf8_t *message)
+{
+    Monitor *monitor;
+
+    /* initialize the error notification window if not done already */
+    if (error_notification == NULL) {
+        error_notification = create_notification();
+        if (error_notification == NULL) {
+            /* :( */
+            return;
+        }
+    }
+
+    /* change border color and size of the notification window */
+    change_client_attributes(&error_notification->reference,
+            configuration.foreground_error);
+    error_notification->foreground = configuration.foreground_error;
+    error_notification->background = configuration.background;
+
+    monitor = get_focused_monitor();
+    show_notification(error_notification, message,
+            monitor->x + monitor->width / 2,
+            monitor->y + monitor->height / 2);
+}

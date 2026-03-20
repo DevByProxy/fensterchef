@@ -1,187 +1,226 @@
-#include <unistd.h>
-#include <string.h> // strcmp()
-#include <sys/wait.h> // wait()
+#include <errno.h>
+#include <inttypes.h>
+#include <string.h>
 
 #include "action.h"
-#include "configuration.h"
+#include "binding.h"
+#include "cursor.h"
 #include "event.h"
 #include "fensterchef.h"
 #include "frame.h"
 #include "log.h"
+#include "menu.h"
 #include "monitor.h"
-#include "stash_frame.h"
-#include "tiling.h"
-#include "utility.h"
-#include "window_list.h"
+#include "notification.h"
+#include "parse/group.h"
+#include "parse/parse.h"
+#include "window.h"
+#include "x11/display.h"
+#include "x11/move_resize.h"
 
-/* all actions and their string representation and data type */
-static const struct {
-    /* name of the action */
-    const char *name;
-    /* data type of the action parameter */
-    parser_data_type_t data_type;
-} action_information[ACTION_MAX] = {
-    [ACTION_NULL] = { NULL, 0 },
-
-    [ACTION_NONE] = { "NONE", PARSER_DATA_TYPE_VOID },
-    [ACTION_RELOAD_CONFIGURATION] = { "RELOAD-CONFIGURATION", PARSER_DATA_TYPE_VOID },
-    [ACTION_PARENT_FRAME] = { "PARENT-FRAME", PARSER_DATA_TYPE_VOID },
-    [ACTION_CHILD_FRAME] = { "CHILD-FRAME", PARSER_DATA_TYPE_VOID },
-    [ACTION_ROOT_FRAME] = { "ROOT-FRAME", PARSER_DATA_TYPE_VOID },
-    [ACTION_CLOSE_WINDOW] = { "CLOSE-WINDOW", PARSER_DATA_TYPE_VOID },
-    [ACTION_MINIMIZE_WINDOW] = { "MINIMIZE-WINDOW", PARSER_DATA_TYPE_VOID },
-    [ACTION_FOCUS_WINDOW] = { "FOCUS-WINDOW", PARSER_DATA_TYPE_VOID },
-    [ACTION_INITIATE_MOVE] = { "INITIATE-MOVE", PARSER_DATA_TYPE_VOID },
-    [ACTION_INITIATE_RESIZE] = { "INITIATE-RESIZE", PARSER_DATA_TYPE_VOID },
-    [ACTION_NEXT_WINDOW] = { "NEXT-WINDOW", PARSER_DATA_TYPE_VOID },
-    [ACTION_PREVIOUS_WINDOW] = { "PREVIOUS-WINDOW", PARSER_DATA_TYPE_VOID },
-    [ACTION_REMOVE_FRAME] = { "REMOVE-FRAME", PARSER_DATA_TYPE_VOID },
-    [ACTION_TOGGLE_TILING] = { "TOGGLE-TILING", PARSER_DATA_TYPE_VOID },
-    [ACTION_TOGGLE_FULLSCREEN] = { "TOGGLE-FULLSCREEN", PARSER_DATA_TYPE_VOID },
-    [ACTION_TOGGLE_FOCUS] = { "TOGGLE-FOCUS", PARSER_DATA_TYPE_VOID },
-    [ACTION_SPLIT_HORIZONTALLY] = { "SPLIT-HORIZONTALLY", PARSER_DATA_TYPE_VOID },
-    [ACTION_SPLIT_VERTICALLY] = { "SPLIT-VERTICALLY", PARSER_DATA_TYPE_VOID },
-    [ACTION_FOCUS_UP] = { "FOCUS-UP", PARSER_DATA_TYPE_VOID },
-    [ACTION_FOCUS_LEFT] = { "FOCUS-LEFT", PARSER_DATA_TYPE_VOID },
-    [ACTION_FOCUS_RIGHT] = { "FOCUS-RIGHT", PARSER_DATA_TYPE_VOID },
-    [ACTION_FOCUS_DOWN] = { "FOCUS-DOWN", PARSER_DATA_TYPE_VOID },
-    [ACTION_EXCHANGE_UP] = { "EXCHANGE-UP", PARSER_DATA_TYPE_VOID },
-    [ACTION_EXCHANGE_LEFT] = { "EXCHANGE-LEFT", PARSER_DATA_TYPE_VOID },
-    [ACTION_EXCHANGE_RIGHT] = { "EXCHANGE-RIGHT", PARSER_DATA_TYPE_VOID },
-    [ACTION_EXCHANGE_DOWN] = { "EXCHANGE-DOWN", PARSER_DATA_TYPE_VOID },
-    [ACTION_SHOW_WINDOW_LIST] = { "SHOW-WINDOW-LIST", PARSER_DATA_TYPE_VOID },
-    [ACTION_RUN] = { "RUN", PARSER_DATA_TYPE_STRING },
-    [ACTION_SHOW_MESSAGE] = { "SHOW-MESSAGE", PARSER_DATA_TYPE_STRING },
-    [ACTION_SHOW_MESSAGE_RUN] = { "SHOW-MESSAGE-RUN", PARSER_DATA_TYPE_STRING },
-    [ACTION_RESIZE_BY] = { "RESIZE-BY", PARSER_DATA_TYPE_QUAD },
-    [ACTION_QUIT] = { "QUIT", PARSER_DATA_TYPE_VOID },
+/* the corresponding string identifier for all actions */
+static const char *action_strings[ACTION_MAX] = {
+#define X(identifier, string) \
+    [ACTION_##identifier] = string,
+    DEFINE_ALL_ACTIONS
+#undef X
 };
 
-/* Get the data type the action expects as parameter. */
-parser_data_type_t get_action_data_type(action_t action)
-{
-    return action_information[action].data_type;
-}
+/* meta information about a data type */
+static const struct action_data_meta_information {
+    /* single letter identifier */
+    char identifier;
+    /* string representation the data type */
+    const char *name;
+} action_data_meta_information[ACTION_DATA_TYPE_MAX] = {
+#define X(identifier, type_name, short_name) \
+    { short_name, STRINGIFY(identifier) },
+    DEFINE_ALL_ACTION_DATA_TYPES
+#undef X
+};
 
-/* Get an action from a string. */
-action_t string_to_action(const char *string)
+/* Search the parse data meta table for given identifier. */
+action_data_type_t get_action_data_type_from_identifier(char identifier)
 {
-    for (action_t i = ACTION_FIRST_ACTION; i < ACTION_MAX; i++) {
-        if (strcasecmp(action_information[i].name, string) == 0) {
-            return i;
+    action_data_type_t type = 0;
+
+    for (; type < ACTION_DATA_TYPE_MAX; type++) {
+        if (action_data_meta_information[type].identifier == identifier) {
+            break;
         }
     }
-    return ACTION_NULL;
+
+    return type;
 }
 
-/* Get a string version of an action. */
-const char *action_to_string(action_t action)
+/* Get a string representation of a data type. */
+inline const char *get_action_data_type_name(action_data_type_t type)
 {
-    return action_information[action].name;
+    return action_data_meta_information[type].name;
 }
 
-/* Create a deep copy of given action array. */
-Action *duplicate_actions(Action *actions, uint32_t number_of_actions)
+/* Get the action string of given action type. */
+inline const char *get_action_string(action_type_t type)
 {
-    Action *duplicate;
+    return action_strings[type];
+}
 
-    duplicate = xmemdup(actions, sizeof(*actions) * number_of_actions);
-    for (uint32_t i = 0; i < number_of_actions; i++) {
-        duplicate_data_value(get_action_data_type(duplicate[i].code),
-                &duplicate[i].parameter);
+/* Clear the data value within @data. */
+void clear_action_data(struct action_data *data)
+{
+    switch (data->type) {
+    case ACTION_DATA_TYPE_INTEGER:
+        /* nothing */
+        break;
+
+    case ACTION_DATA_TYPE_STRING:
+        free(data->u.string);
+        break;
+
+    case ACTION_DATA_TYPE_RELATION:
+        clear_window_relation(&data->u.relation);
+        break;
+
+    case ACTION_DATA_TYPE_BUTTON:
+        dereference_action_block(data->u.button.actions);
+        break;
+
+    case ACTION_DATA_TYPE_KEY:
+        dereference_action_block(data->u.key.actions);
+        break;
+
+    case ACTION_DATA_TYPE_MAX:
+        /* nothing */
+        break;
     }
-    return duplicate;
 }
 
-/* Frees all given actions and the action array itself. */
-void free_actions(Action *actions, uint32_t number_of_actions)
+/* Duplicate a single action data point into itself. */
+void duplicate_action_data(struct action_data *data)
 {
-    for (uint32_t i = 0; i < number_of_actions; i++) {
-        clear_data_value(get_action_data_type(actions[i].code),
-                &actions[i].parameter);
+    switch (data->type) {
+    case ACTION_DATA_TYPE_INTEGER:
+        /* nothing */
+        break;
+
+    case ACTION_DATA_TYPE_STRING:
+        data->u.string = xstrdup(data->u.string);
+        break;
+
+    case ACTION_DATA_TYPE_RELATION:
+        duplicate_window_relation(&data->u.relation);
+        break;
+
+    case ACTION_DATA_TYPE_BUTTON:
+        reference_action_block(data->u.button.actions);
+        break;
+
+    case ACTION_DATA_TYPE_KEY:
+        reference_action_block(data->u.key.actions);
+        break;
+
+    case ACTION_DATA_TYPE_MAX:
+        /* nothing */
+        break;
     }
-    free(actions);
 }
 
-/* Run given shell program. */
-static void run_shell(const char *shell)
+/* Increment the reference counter of an action block. */
+void reference_action_block(ActionBlock *block)
 {
-    int child_process_id;
+    if (block == NULL) {
+        /* avoid the pain of external null checks */
+        return;
+    }
 
-    /* using `fork()` twice and `_exit()` will give the child process to the
-     * init system so we do not need to worry about cleaning up dead child
-     * processes; we want to run the shell in a new session
-     * TODO: explain why `setsid()` is needed
-     */
+    block->reference_count++;
+}
 
-    /* create a child process */
-    child_process_id = fork();
-    if (child_process_id == 0) {
-        /* this code is executed in the child */
+/* Decrement the reference counter of an action block. */
+void dereference_action_block(ActionBlock *block)
+{
+    if (block == NULL) {
+        return;
+    }
 
-        /* create a grandchild process */
-        if (fork() == 0) {
-            /* make a new session */
-            if (setsid() == -1) {
-                /* TODO: when does this happen? */
-                exit(EXIT_FAILURE);
+    if (block->reference_count <= 1) {
+        struct action_data *data;
+
+        data = block->data;
+        for (size_t i = 0; i < block->number_of_items; i++) {
+            for (unsigned j = 0; j < block->items[i].data_count; j++) {
+                clear_action_data(data);
+                data++;
             }
-            /* this code is executed in the grandchild process */
-            (void) execl("/bin/sh", "sh", "-c", shell, (char*) NULL);
-            /* this point is only reached if `execl()` failed */
-            exit(EXIT_FAILURE);
-        } else {
-            /* exit the child process */
-            _exit(0);
         }
+        free(block->items);
+        free(block);
     } else {
-        /* wait until the child process exits */
-        (void) waitpid(child_process_id, NULL, 0);
+        block->reference_count--;
     }
 }
 
-/* Run a shell and get the output. */
-static char *run_shell_and_get_output(const char *shell)
+/* Create a block of actions with specified number of items and data
+ * preallocated.
+ */
+ActionBlock *create_empty_action_block(size_t number_of_items,
+        size_t number_of_data_points)
 {
-    FILE *process;
-    char *line;
-    size_t length, capacity;
+    ActionBlock *block;
 
-    process = popen(shell, "r");
-    if (process == NULL) {
-        return NULL;
-    }
+    block = xcalloc(1, sizeof(*block) +
+            sizeof(*block->data) * number_of_data_points);
+    block->reference_count = 1;
 
-    capacity = 128;
-    line = xmalloc(capacity);
-    length = 0;
-    /* read all output from the process, stopping at the end (EOF) or a new line
-     */
-    for (int c; (c = fgetc(process)) != EOF && c != '\n'; ) {
-        if (length + 1 == capacity) {
-            capacity *= 2;
-            RESIZE(line, capacity);
+    ALLOCATE_ZERO(block->items, number_of_items);
+    block->number_of_items = number_of_items;
+
+    return block;
+}
+
+/* Do all actions within @block. */
+void run_action_block(ActionBlock *block)
+{
+    /* the current group call depth */
+    static unsigned block_call_depth;
+
+    block_call_depth++;
+
+    if (block_call_depth > MAX_BLOCK_CALL_DEPTH) {
+        LOG_ERROR("interrupted action: calling is too deep or nested\n");
+    } else {
+        const struct action_data *data;
+
+        reference_action_block(block);
+
+        data = block->data;
+        for (size_t i = 0; i < block->number_of_items; i++) {
+            struct action_block_item *item;
+
+            item = &block->items[i];
+            do_action(item->type, data);
+            data += item->data_count;
         }
-        line[length++] = c;
+
+        dereference_action_block(block);
     }
-    line[length] = '\0';
-    pclose(process);
-    return line;
+
+    block_call_depth--;
 }
 
 /* Resize the current window or current frame if it does not exist. */
-static void resize_frame_or_window_by(Window *window, int32_t left, int32_t top,
-        int32_t right, int32_t bottom)
+static bool resize_frame_or_window_by(FcWindow *window, int left, int top,
+        int right, int bottom)
 {
     Frame *frame;
 
     if (window == NULL) {
-        frame = focus_frame;
+        frame = Frame_focus;
         if (frame == NULL) {
-            return;
+            return false;
         }
     } else {
-        frame = get_frame_of_window(window);
+        frame = get_window_frame(window);
     }
 
     if (frame != NULL) {
@@ -193,10 +232,10 @@ static void resize_frame_or_window_by(Window *window, int32_t left, int32_t top,
         right += left;
         bottom += top;
         /* check for underflows */
-        if ((int32_t) window->width < -right) {
+        if ((int) window->width < -right) {
             right = -window->width;
         }
-        if ((int32_t) window->height < -bottom) {
+        if ((int) window->height < -bottom) {
             bottom = -window->height;
         }
         set_window_size(window,
@@ -205,28 +244,35 @@ static void resize_frame_or_window_by(Window *window, int32_t left, int32_t top,
                 window->width + right,
                 window->height + bottom);
     }
+    return true;
 }
 
 /* Get a tiling window that is not currently shown and put it into the focus
  * frame.
  */
-void set_showable_tiling_window(bool previous)
+void set_showable_tiling_window(unsigned count, bool previous)
 {
-    Window *start, *next, *valid_window = NULL;
+    FcWindow *start, *next, *valid_window = NULL;
+    /* need +1 in case there are no windows */
+    FcWindow *windows[Window_count + 1];
+    unsigned window_count = 1;
 
-    if (focus_frame->window == NULL) {
+    if (Frame_focus->window == NULL) {
         start = NULL;
-        next = first_window;
+        next = Window_first;
     } else {
-        start = focus_frame->window;
+        start = Frame_focus->window;
         next = start->next;
     }
+
+    /* start might be NULL here */
+    windows[0] = start;
 
     /* go through all windows in a cyclic manner */
     for (;; next = next->next) {
         /* wrap around */
         if (start != NULL && next == NULL) {
-            next = first_window;
+            next = Window_first;
         }
 
         /* check if we went around */
@@ -235,81 +281,95 @@ void set_showable_tiling_window(bool previous)
         }
 
         if (!next->state.is_visible && next->state.mode == WINDOW_MODE_TILING) {
-            valid_window = next;
-            /* if the previous window is requested, we need to go further to
-             * find the window before the current window
-             */
-            if (!previous) {
-                break;
-            }
+            windows[window_count] = next;
+            window_count++;
         }
     }
 
-    if (valid_window == NULL) {
-        set_notification((utf8_t*) "No other window",
-                focus_frame->x + focus_frame->width / 2,
-                focus_frame->y + focus_frame->height / 2);
-    } else {
-        show_window(valid_window);
-        set_focus_window(valid_window);
+    count %= window_count;
+    if (count == 0) {
+        /* it is the same window again, the following code would actually crash
+         * because `window_count - count == window_count` and that is
+         * outside the array
+         */
+        set_system_notification("No other window",
+                Frame_focus->x + Frame_focus->width / 2,
+                Frame_focus->y + Frame_focus->height / 2);
+        return;
     }
+
+    if (previous) {
+        valid_window = windows[window_count - count];
+    } else {
+        valid_window = windows[count];
+    }
+
+    /* clear the old frame and stash it */
+    (void) stash_frame(Frame_focus);
+    /* put the window into the focused frame, size and show it */
+    Frame_focus->window = valid_window;
+    reload_frame(Frame_focus);
+    valid_window->state.is_visible = true;
+    /* focus the shown window */
+    set_focus_window(valid_window);
 }
 
-/* Change the focus from tiling to non tiling or vise versa. */
-void toggle_focus(void)
+/* Change the focus from tiling to non tiling and vise versa. */
+bool toggle_focus(void)
 {
-    Window *window;
+    FcWindow *window;
 
-    if (focus_window == NULL ||
-            focus_window->state.mode == WINDOW_MODE_TILING) {
-        /* the the first window on the Z stack that is visible */
-        for (window = top_window; window != NULL; window = window->below) {
+    /* Four cases must be handled:
+     * 1. No window is focused
+     * 1.1. There is a floating window
+     * 1.2. There is no floating window
+     * 2. A tiling window is focused
+     * 3. A floating window is focused
+     */
+
+    if (Window_focus == NULL ||
+            Window_focus->state.mode == WINDOW_MODE_TILING) {
+        /* check for case 1.1 */
+        for (window = Window_top; window != NULL; window = window->below) {
             if (window->state.mode == WINDOW_MODE_TILING) {
-                window = NULL;
                 break;
             }
-            if (window->state.is_visible) {
-                break;
+            if (is_window_focusable(window) && window->state.is_visible) {
+                /* cover case 1.1 */
+                set_focus_window(window);
+                return true;
             }
         }
 
-        if (window != NULL) {
-            set_focus_window(window);
+        /* this covers case 1.2 and 2 */
+        if (Frame_focus->window != NULL) {
+            set_focus_window(Frame_focus->window);
         }
-    } else {
-        set_focus_frame(focus_frame);
+    } else if (Frame_focus->window != Window_focus) {
+        /* cover case 3 */
+        set_focus_window(Frame_focus->window);
+        return true;
     }
+    return false;
 }
 
 /* Move the focus from @from to @to and exchange if requested. */
-static void move_to_frame(Frame *from, Frame *to, Monitor *monitor,
-        bool do_exchange)
+static void move_to_frame(Frame *from, Frame *to, bool do_exchange)
 {
     if (do_exchange) {
-        Frame *const saved_frame = stash_frame_later(from);
-        replace_frame(from, to);
-        if (saved_frame != NULL) {
-            replace_frame(to, saved_frame);
-            free(saved_frame);
-        }
-    } else if (monitor != NULL) {
-        Window *const window = get_window_covering_monitor(monitor);
-        /* focus the window covering the monitor */
-        if (window != NULL) {
-            set_focus_window(window);
-            focus_frame = to;
-            return;
-        }
+        exchange_frames(from, to);
+    } else {
+        /* simply "move" to the next frame by focusing it */
+        set_focus_frame(to);
     }
-
-    set_focus_frame(to);
 }
 
 /* Move the focus to the frame above @relative. */
-static void move_to_above_frame(Frame *relative, bool do_exchange)
+static bool move_to_above_frame(Frame *relative, bool do_exchange)
 {
     Frame *frame;
     Monitor *monitor = NULL;
+    int x;
 
     /* if a group of frames is given, get a frame inside if the split direction
      * is aligned with the movement
@@ -320,8 +380,9 @@ static void move_to_above_frame(Frame *relative, bool do_exchange)
     } else {
         frame = get_above_frame(relative);
         if (frame == NULL) {
-            monitor = get_monitor_from_rectangle(
-                    relative->x, relative->y - 1, 1, 1);
+            /* move across monitors */
+            monitor = get_monitor_containing_frame(relative);
+            monitor = get_above_monitor(monitor);
             if (monitor != NULL) {
                 frame = monitor->frame;
             }
@@ -329,31 +390,27 @@ static void move_to_above_frame(Frame *relative, bool do_exchange)
     }
 
     if (frame == NULL) {
-        return;
-    }
-
-    const int x = relative->x + relative->width / 2;
-    /* move into the most bottom frame */
-    while (frame->left != NULL) {
-        if (frame->split_direction == FRAME_SPLIT_HORIZONTALLY) {
-            if (frame->left->x + (int32_t) frame->left->width >= x) {
-                frame = frame->left;
-            } else {
-                frame = frame->right;
-            }
-        } else {
-            frame = frame->right;
+        if (!do_exchange && relative->window != NULL) {
+            set_focus_window(relative->window);
         }
+        return false;
     }
 
-    move_to_frame(relative, frame, monitor, do_exchange);
+    x = relative->focused_from_above_x;
+    x = MIN(x, relative->x + (int) relative->width - 1);
+    x = MAX(x, relative->x + 1);
+    frame = get_best_leaf_frame(frame, x, INT_MAX);
+    frame->focused_from_below_x = relative->x + relative->width / 2;
+    move_to_frame(relative, frame, do_exchange);
+    return true;
 }
 
 /* Move the focus to the frame left of @relative. */
-static void move_to_left_frame(Frame *relative, bool do_exchange)
+static bool move_to_left_frame(Frame *relative, bool do_exchange)
 {
     Frame *frame;
     Monitor *monitor = NULL;
+    int y;
 
     /* if a group of frames is given, get a frame inside if the split direction
      * is aligned with the movement
@@ -364,8 +421,9 @@ static void move_to_left_frame(Frame *relative, bool do_exchange)
     } else {
         frame = get_left_frame(relative);
         if (frame == NULL) {
-            monitor = get_monitor_from_rectangle(
-                    relative->x - 1, relative->y, 1, 1);
+            /* move across monitors */
+            monitor = get_monitor_containing_frame(relative);
+            monitor = get_left_monitor(monitor);
             if (monitor != NULL) {
                 frame = monitor->frame;
             }
@@ -373,31 +431,27 @@ static void move_to_left_frame(Frame *relative, bool do_exchange)
     }
 
     if (frame == NULL) {
-        return;
-    }
-
-    const int y = relative->y + relative->height / 2;
-    /* move into the most right frame */
-    while (frame->left != NULL) {
-        if (frame->split_direction == FRAME_SPLIT_VERTICALLY) {
-            if (frame->left->y + (int32_t) frame->left->height >= y) {
-                frame = frame->left;
-            } else {
-                frame = frame->right;
-            }
-        } else {
-            frame = frame->right;
+        if (!do_exchange && relative->window != NULL) {
+            set_focus_window(relative->window);
         }
+        return false;
     }
 
-    move_to_frame(relative, frame, monitor, do_exchange);
+    y = relative->focused_from_left_y;
+    y = MIN(y, relative->y + (int) relative->height - 1);
+    y = MAX(y, relative->y + 1);
+    frame = get_best_leaf_frame(frame, INT_MAX, y);
+    frame->focused_from_right_y = relative->y + relative->height / 2;
+    move_to_frame(relative, frame, do_exchange);
+    return true;
 }
 
 /* Move the focus to the frame right of @relative. */
-static void move_to_right_frame(Frame *relative, bool do_exchange)
+static bool move_to_right_frame(Frame *relative, bool do_exchange)
 {
     Frame *frame;
     Monitor *monitor = NULL;
+    int y;
 
     /* if a group of frames is given, get a frame inside if the split direction
      * is aligned with the movement
@@ -408,8 +462,9 @@ static void move_to_right_frame(Frame *relative, bool do_exchange)
     } else {
         frame = get_right_frame(relative);
         if (frame == NULL) {
-            monitor = get_monitor_from_rectangle(
-                    relative->x + relative->width, relative->y, 1, 1);
+            /* move across monitors */
+            monitor = get_monitor_containing_frame(relative);
+            monitor = get_right_monitor(monitor);
             if (monitor != NULL) {
                 frame = monitor->frame;
             }
@@ -417,43 +472,40 @@ static void move_to_right_frame(Frame *relative, bool do_exchange)
     }
 
     if (frame == NULL) {
-        return;
-    }
-
-    const int y = relative->y + relative->height / 2;
-    /* move into the most left frame */
-    while (frame->left != NULL) {
-        if (frame->split_direction == FRAME_SPLIT_VERTICALLY) {
-            if (frame->left->y + (int32_t) frame->left->height >= y) {
-                frame = frame->left;
-            } else {
-                frame = frame->right;
-            }
-        } else {
-            frame = frame->left;
+        if (!do_exchange && relative->window != NULL) {
+            set_focus_window(relative->window);
         }
+        return false;
     }
 
-    move_to_frame(relative, frame, monitor, do_exchange);
+    y = relative->focused_from_right_y;
+    y = MIN(y, relative->y + (int) relative->height - 1);
+    y = MAX(y, relative->y + 1);
+    frame = get_best_leaf_frame(frame, INT_MIN, y);
+    frame->focused_from_left_y = relative->y + relative->height / 2;
+    move_to_frame(relative, frame, do_exchange);
+    return true;
 }
 
 /* Move the focus to the frame below @relative. */
-static void move_to_below_frame(Frame *relative, bool do_exchange)
+static bool move_to_below_frame(Frame *relative, bool do_exchange)
 {
     Frame *frame;
     Monitor *monitor = NULL;
+    int x;
 
     /* if a group of frames is given, get a frame inside if the split direction
      * is aligned with the movement
      */
     if (!do_exchange && relative->left != NULL &&
-            focus_frame->split_direction == FRAME_SPLIT_VERTICALLY) {
-        frame = focus_frame->right;
+            Frame_focus->split_direction == FRAME_SPLIT_VERTICALLY) {
+        frame = Frame_focus->right;
     } else {
         frame = get_below_frame(relative);
         if (frame == NULL) {
-            monitor = get_monitor_from_rectangle(
-                    relative->x, relative->y + relative->height, 1, 1);
+            /* move across monitors */
+            monitor = get_monitor_containing_frame(relative);
+            monitor = get_below_monitor(monitor);
             if (monitor != NULL) {
                 frame = monitor->frame;
             }
@@ -461,71 +513,447 @@ static void move_to_below_frame(Frame *relative, bool do_exchange)
     }
 
     if (frame == NULL) {
-        return;
-    }
-
-    const int x = relative->x + relative->width / 2;
-    /* move into the most top frame */
-    while (frame->left != NULL) {
-        if (frame->split_direction == FRAME_SPLIT_HORIZONTALLY) {
-            if (frame->left->x + (int32_t) frame->left->width >= x) {
-                frame = frame->left;
-            } else {
-                frame = frame->right;
-            }
-        } else {
-            frame = frame->left;
+        if (!do_exchange && relative->window != NULL) {
+            set_focus_window(relative->window);
         }
+        return false;
     }
 
-    move_to_frame(relative, frame, monitor, do_exchange);
+    x = relative->focused_from_below_x;
+    x = MIN(x, relative->x + (int) relative->width - 1);
+    x = MAX(x, relative->x + 1);
+    frame = get_best_leaf_frame(frame, x, INT_MIN);
+    frame->focused_from_above_x = relative->x + relative->width / 2;
+    move_to_frame(relative, frame, do_exchange);
+    return true;
+}
+
+/* Translate the integer data if not using pixels. */
+static inline int translate_integer_data(Monitor *monitor,
+        const struct action_data *data, bool is_x_axis)
+{
+    int value;
+
+    if ((data->flags & ACTION_DATA_FLAGS_IS_PERCENT)) {
+        if (is_x_axis) {
+            value = monitor->width;
+        } else {
+            value = monitor->height;
+        }
+        value = value * data->u.integer / 100;
+    } else {
+        value = data->u.integer;
+    }
+    return value;
+}
+
+/* Put the given window at the monitor below. */
+static void move_window_down(FcWindow *window)
+{
+    Monitor *monitor, *below;
+    int border_size;
+    int top_diff, bottom_diff, y_diff;
+
+    monitor = get_monitor_containing_window(window);
+    below = get_below_monitor(monitor);
+    border_size = get_window_border_size(window);
+    top_diff = window->y - monitor->y;
+    bottom_diff = monitor->y + monitor->height -
+                (window->y + window->height + border_size * 2);
+    if (below != NULL) {
+        y_diff = MIN(top_diff, bottom_diff);
+        y_diff = MAX(y_diff, 0);
+        window->y = below->y + y_diff;
+    } else if (top_diff < 0) {
+        window->y = monitor->y;
+    } else if (top_diff < bottom_diff) {
+        window->y = monitor->y + monitor->height -
+            (top_diff + window->height + border_size * 2);
+    }
+}
+
+/* Put the given window at the left monitor. */
+static void move_window_left(FcWindow *window)
+{
+    Monitor *monitor, *left;
+    int border_size;
+    int left_diff, right_diff, x_diff;
+
+    monitor = get_monitor_containing_window(window);
+    left = get_left_monitor(monitor);
+    border_size = get_window_border_size(window);
+    left_diff = window->x - monitor->x;
+    right_diff = monitor->x + monitor->width -
+                (window->x + window->width + border_size * 2);
+    if (left != NULL) {
+        x_diff = MIN(left_diff, right_diff);
+        x_diff = MAX(x_diff, 0);
+        window->x = left->x + left->width -
+            (x_diff + window->width + border_size * 2);
+    } else if (right_diff < 0) {
+        window->x = monitor->x + monitor->width -
+            (window->width + border_size * 2);
+    } else if (right_diff < left_diff) {
+        window->x = monitor->x;
+    }
+}
+
+/* Put the given window at the right monitor. */
+static void move_window_right(FcWindow *window)
+{
+    Monitor *monitor, *right;
+    int border_size;
+    int left_diff, right_diff, x_diff;
+
+    monitor = get_monitor_containing_window(window);
+    right = get_below_monitor(monitor);
+    border_size = get_window_border_size(window);
+    left_diff = window->x - monitor->x;
+    right_diff = monitor->x + monitor->width -
+                (window->x + window->width + border_size * 2);
+    if (right != NULL) {
+        x_diff = MIN(left_diff, right_diff);
+        x_diff = MAX(x_diff, 0);
+        window->x = right->x + x_diff;
+    } else if (left_diff < 0) {
+        window->x = monitor->x;
+    } else if (left_diff < right_diff) {
+        window->x = monitor->x + monitor->width -
+            (left_diff + window->width + border_size * 2);
+    }
+}
+
+/* Put the given window at the monitor above. */
+static void move_window_up(FcWindow *window)
+{
+    Monitor *monitor, *above;
+    int border_size;
+    int top_diff, bottom_diff, y_diff;
+
+    monitor = get_monitor_containing_window(window);
+    above = get_above_monitor(monitor);
+    border_size = get_window_border_size(window);
+    top_diff = window->y - monitor->y;
+    bottom_diff = monitor->y + monitor->height -
+                (window->y + window->height + border_size * 2);
+    if (above != NULL) {
+        y_diff = MIN(top_diff, bottom_diff);
+        y_diff = MAX(y_diff, 0);
+        window->y = above->y + above->height -
+            (y_diff + window->height + border_size * 2);
+    } else if (bottom_diff < 0) {
+        window->y = monitor->y + monitor->height -
+            (window->height + border_size * 2);
+    } else if (bottom_diff < top_diff) {
+        window->y = monitor->y;
+    }
 }
 
 /* Do the given action. */
-void do_action(const Action *action, Window *window)
+void do_action(action_type_t type, const struct action_data *data)
 {
+    FcWindow *window;
     char *shell;
+    int count = 1;
+    Frame *frame;
+    bool is_previous = true;
+    Monitor *monitor;
 
-    switch (action->code) {
-    /* invalid action value */
-    case ACTION_NULL:
-        LOG_ERROR("tried to do NULL action");
-        break;
+    window = Window_selected;
+    frame = Frame_focus;
 
-    /* do nothing */
-    case ACTION_NONE:
-        break;
-
-    /* reload the configuration file */
-    case ACTION_RELOAD_CONFIGURATION:
-        /* this needs to be delayed because if this is called by a binding and
-         * the configuration is immediately reloaded, the pointer to the binding
-         * becomes invalid and a crash occurs
-         */
-        is_reload_requested = true;
-        break;
-
-    /* move the focus to the parent frame */
-    case ACTION_PARENT_FRAME:
-        if (focus_frame->parent != NULL) {
-            focus_frame = focus_frame->parent;
+    switch (type) {
+    /* assign a number to a frame */
+    case ACTION_ASSIGN:
+        /* remove the number from the old frame if there is any */
+        frame = get_frame_by_number((unsigned) data->u.integer);
+        /* also try to find it in the stash */
+        if (frame == NULL) {
+            frame = Frame_last_stashed;
+            for (; frame != NULL; frame = frame->previous_stashed) {
+                if (frame->number == (unsigned) data->u.integer) {
+                    break;
+                }
+            }
         }
-        set_focus_frame(focus_frame);
-        break;
-
-    /* move the focus to the child frame */
-    case ACTION_CHILD_FRAME:
-        if (focus_frame->left != NULL) {
-            focus_frame = focus_frame->left;
+        if (frame != NULL) {
+            frame->number = 0;
         }
-        set_focus_frame(focus_frame);
+
+        Frame_focus->number = data->u.integer;
         break;
 
-    /* move the focus to the root frame */
-    case ACTION_ROOT_FRAME:
-        set_focus_frame(get_root_frame(focus_frame));
+    /* assign a number to a window */
+    case ACTION_ASSIGN_WINDOW:
+        if (window == NULL) {
+            break;
+        }
+        set_window_number(window, data->u.integer);
         break;
 
+    /* automatically equalize the frames when a frame is split or removed */
+    case ACTION_AUTO_EQUALIZE:
+        configuration.auto_equalize = data->u.integer;
+        break;
+
+    /* automatic filling of voids */
+    case ACTION_AUTO_FILL_VOID:
+        configuration.auto_fill_void = data->u.integer;
+        break;
+
+    /* automatic finding of voids to fill */
+    case ACTION_AUTO_FIND_VOID:
+        configuration.auto_find_void = data->u.integer;
+        break;
+
+    /* automatic removal of windows (implies remove void) */
+    case ACTION_AUTO_REMOVE:
+        configuration.auto_remove = data->u.integer;
+        break;
+
+    /* automatic removal of voids */
+    case ACTION_AUTO_REMOVE_VOID:
+        configuration.auto_remove_void = data->u.integer;
+        break;
+
+    /* automatic splitting */
+    case ACTION_AUTO_SPLIT:
+        configuration.auto_split = data->u.integer;
+        break;
+
+    /* the background color of the fensterchef windows */
+    case ACTION_BACKGROUND:
+        configuration.background = data->u.integer;
+        break;
+
+    /* the border color of all windows */
+    case ACTION_BORDER_COLOR:
+        for (FcWindow *window = Window_first;
+                window != NULL;
+                window = window->next) {
+            window->border_color = data->u.integer;
+        }
+        configuration.border_color = data->u.integer;
+        break;
+
+    /* set the border color of the current window */
+    case ACTION_BORDER_COLOR_CURRENT:
+        if (window == NULL) {
+            break;
+        }
+        window->border_color = data->u.integer;
+        break;
+
+    /* set the border color of the current window */
+    case ACTION_BORDER_COLOR_CURRENT_DEFAULT:
+        if (window == NULL) {
+            break;
+        }
+        window->border_color = configuration.border_color;
+        break;
+
+    /* the border color of "active" windows */
+    case ACTION_BORDER_COLOR_ACTIVE:
+        for (FcWindow *window = Window_first;
+                window != NULL;
+                window = window->next) {
+            window->border_color_active = data->u.integer;
+        }
+        configuration.border_color_active = data->u.integer;
+        break;
+
+    /* set the active border color of the current window */
+    case ACTION_BORDER_COLOR_ACTIVE_CURRENT:
+        if (window == NULL) {
+            break;
+        }
+        window->border_color_active = data->u.integer;
+        break;
+
+    /* set the active border color of the current window */
+    case ACTION_BORDER_COLOR_ACTIVE_CURRENT_DEFAULT:
+        if (window == NULL) {
+            break;
+        }
+        window->border_color_active = configuration.border_color_active;
+        break;
+
+    /* set the border size of all windows */
+    case ACTION_BORDER_SIZE:
+        for (FcWindow *window = Window_first;
+                window != NULL;
+                window = window->next) {
+            window->border_size = data->u.integer;
+        }
+        configuration.border_size = data->u.integer;
+        break;
+
+    /* set the border size of the current window */
+    case ACTION_BORDER_SIZE_CURRENT:
+        if (window == NULL) {
+            break;
+        }
+        window->border_size = data->u.integer;
+        break;
+
+    /* set the border size of the current window */
+    case ACTION_BORDER_SIZE_CURRENT_DEFAULT:
+        if (window == NULL) {
+            break;
+        }
+        window->border_size = configuration.border_size;
+        break;
+
+    /* set the border radius of all windows */
+    case ACTION_BORDER_RADIUS:
+        for (FcWindow *window = Window_first;
+                window != NULL;
+                window = window->next) {
+            window->border_radius = data->u.integer;
+        }
+        configuration.border_radius = data->u.integer;
+        break;
+
+    /* set the border radius of the current window */
+    case ACTION_BORDER_RADIUS_CURRENT:
+        if (window == NULL) {
+            break;
+        }
+        window->border_radius = data->u.integer;
+        break;
+
+    /* set the border radius of the current window */
+    case ACTION_BORDER_RADIUS_CURRENT_DEFAULT:
+        if (window == NULL) {
+            break;
+        }
+        window->border_radius = configuration.border_radius;
+        break;
+
+    /* set the inner border radius of all windows */
+    case ACTION_BORDER_RADIUS_INNER:
+        for (FcWindow *window = Window_first;
+                window != NULL;
+                window = window->next) {
+            window->border_radius_inner = data->u.integer;
+        }
+        configuration.border_radius_inner = data->u.integer;
+        break;
+
+    /* set the inner border radius of the current window */
+    case ACTION_BORDER_RADIUS_INNER_CURRENT:
+        if (window == NULL) {
+            break;
+        }
+        window->border_radius_inner = data->u.integer;
+        break;
+
+    /* set the inner border radius of the current window */
+    case ACTION_BORDER_RADIUS_INNER_CURRENT_DEFAULT:
+        if (window == NULL) {
+            break;
+        }
+        window->border_radius_inner = configuration.border_radius_inner;
+        break;
+
+    /* set the border color of focused windows */
+    case ACTION_BORDER_COLOR_FOCUS:
+        for (FcWindow *window = Window_first;
+                window != NULL;
+                window = window->next) {
+            window->border_color_focus = data->u.integer;
+        }
+        configuration.border_color_focus = data->u.integer;
+        break;
+
+    /* set the focus border color of the current window */
+    case ACTION_BORDER_COLOR_FOCUS_CURRENT:
+        if (window == NULL) {
+            break;
+        }
+        window->border_color_focus = data->u.integer;
+        break;
+
+    /* set the focus border color of the current window */
+    case ACTION_BORDER_COLOR_FOCUS_CURRENT_DEFAULT:
+        if (window == NULL) {
+            break;
+        }
+        window->border_color_focus = configuration.border_color_focus;
+        break;
+
+    /* call a group by name */
+    case ACTION_CALL: {
+        struct parse_group *group;
+
+        group = find_group(data->u.string);
+        if (group == NULL) {
+            LOG_ERROR("group %s does not exist\n",
+                    data->u.string);
+        } else {
+            run_action_block(group->actions);
+        }
+        break;
+    }
+
+    /* center a window to the current monitor */
+    case ACTION_CENTER_WINDOW: {
+        Monitor *monitor;
+
+        if (window == NULL) {
+            break;
+        }
+
+        monitor = get_monitor_containing_window(window);
+        set_window_size(window,
+                monitor->x + (monitor->width - window->width) / 2,
+                monitor->y + (monitor->height - window->height) / 2,
+                window->width, window->height);
+        break;
+    }
+
+    /* center a window to given monitor (glob pattern) */
+    case ACTION_CENTER_WINDOW_TO: {
+        Monitor *monitor;
+
+        if (window == NULL) {
+            break;
+        }
+
+        monitor = get_monitor_by_pattern(data->u.string);
+
+        if (monitor == NULL) {
+            LOG_ERROR("no monitor matches %s\n",
+                    data->u.string);
+            break;
+        }
+
+        if (window->state.mode == WINDOW_MODE_TILING) {
+            Frame *frame, *center;
+
+            frame = get_window_frame(window);
+
+            center = monitor->frame;
+            center = get_best_leaf_frame(center,
+                    center->x + center->width / 2,
+                    center->y + center->height / 2);
+
+            if (center != frame) {
+                resplit_frame(center, frame, false, FRAME_SPLIT_HORIZONTALLY);
+            }
+        } else {
+            set_window_size(window,
+                    monitor->x + (monitor->width - window->width) / 2,
+                    monitor->y + (monitor->height - window->height) / 2,
+                    window->width, window->height);
+        }
+        break;
+    }
+
+    /* closes the window with given number */
+    case ACTION_CLOSE_WINDOW_I:
+        window = get_window_by_number(data->u.integer);
+        /* fall through */
     /* closes the currently active window */
     case ACTION_CLOSE_WINDOW:
         if (window == NULL) {
@@ -534,20 +962,402 @@ void do_action(const Action *action, Window *window)
         close_window(window);
         break;
 
-    /* hide the currently active window */
-    case ACTION_MINIMIZE_WINDOW:
+    /* set the default cursor for horizontal sizing */
+    case ACTION_CURSOR_HORIZONTAL:
+        (void) load_cursor(CURSOR_HORIZONTAL, data->u.string);
+        break;
+
+    /* set the default cursor for movement */
+    case ACTION_CURSOR_MOVING:
+        (void) load_cursor(CURSOR_MOVING, data->u.string);
+        break;
+
+    /* set the default root cursor */
+    case ACTION_CURSOR_ROOT:
+        (void) load_cursor(CURSOR_ROOT, data->u.string);
+        break;
+
+    /* set the default cursor for vertical sizing */
+    case ACTION_CURSOR_SIZING:
+        (void) load_cursor(CURSOR_VERTICAL, data->u.string);
+        break;
+
+    /* set the default cursor for vertical sizing */
+    case ACTION_CURSOR_VERTICAL:
+        (void) load_cursor(CURSOR_VERTICAL, data->u.string);
+        break;
+
+    /* write all frensterchef information to a file */
+    case ACTION_DUMP_LAYOUT:
+        if (dump_frames_and_windows(data->u.string) == ERROR) {
+            LOG_ERROR("can not write dump to %s: %s\n",
+                    data->u.string, strerror(errno));
+        }
+        break;
+
+    /* make a frame empty */
+    case ACTION_EMPTY:
+        (void) stash_frame(Frame_focus);
+        break;
+
+    /* equalize the size of the child frames within a frame */
+    case ACTION_EQUALIZE:
+        equalize_frame(Frame_focus, FRAME_SPLIT_HORIZONTALLY);
+        equalize_frame(Frame_focus, FRAME_SPLIT_VERTICALLY);
+        break;
+
+    /* put the current window on the monitor below */
+    case ACTION_EXCHANGE_WINDOW_DOWN:
+        if (window == NULL || window->state.mode == WINDOW_MODE_TILING) {
+            move_to_below_frame(Frame_focus, true);
+            break;
+        }
+        if (window->state.mode == WINDOW_MODE_FULLSCREEN ||
+                window->state.mode == WINDOW_MODE_FLOATING) {
+            move_window_down(window);
+        }
+        break;
+
+    /* put the current window on the left monitor */
+    case ACTION_EXCHANGE_WINDOW_LEFT:
+        if (window == NULL || window->state.mode == WINDOW_MODE_TILING) {
+            move_to_left_frame(Frame_focus, true);
+            break;
+        }
+        if (window->state.mode == WINDOW_MODE_FULLSCREEN ||
+                window->state.mode == WINDOW_MODE_FLOATING) {
+            move_window_left(window);
+        }
+        break;
+
+    /* put the current window on the right monitor */
+    case ACTION_EXCHANGE_WINDOW_RIGHT:
+        if (window == NULL || window->state.mode == WINDOW_MODE_TILING) {
+            move_to_right_frame(Frame_focus, true);
+            break;
+        }
+        if (window->state.mode == WINDOW_MODE_FULLSCREEN ||
+                window->state.mode == WINDOW_MODE_FLOATING) {
+            move_window_right(window);
+        }
+        break;
+
+    /* put the current window on the monitor above */
+    case ACTION_EXCHANGE_WINDOW_UP:
+        if (window == NULL || window->state.mode == WINDOW_MODE_TILING) {
+            move_to_above_frame(Frame_focus, true);
+            break;
+        }
+        if (window->state.mode == WINDOW_MODE_FULLSCREEN ||
+                window->state.mode == WINDOW_MODE_FLOATING) {
+            move_window_up(window);
+        }
+        break;
+
+    /* exchange the current frame with the below one */
+    case ACTION_EXCHANGE_DOWN:
+        move_to_below_frame(Frame_focus, true);
+        break;
+
+    /* exchange the current frame with the left one */
+    case ACTION_EXCHANGE_LEFT:
+        move_to_left_frame(Frame_focus, true);
+        break;
+
+    /* exchange the current frame with the right one */
+    case ACTION_EXCHANGE_RIGHT:
+        move_to_right_frame(Frame_focus, true);
+        break;
+
+    /* exchange the current frame with the above one */
+    case ACTION_EXCHANGE_UP:
+        move_to_above_frame(Frame_focus, true);
+        break;
+
+    /* focus the window within the current frame */
+    case ACTION_FOCUS:
+        set_focus_window(Frame_focus->window);
+        break;
+
+    /* focus a frame with given number */
+    case ACTION_FOCUS_I:
+        frame = get_frame_by_number((unsigned) data->u.integer);
+        /* check if the frame is already shown */
+        if (frame != NULL) {
+            set_focus_frame(frame);
+            break;
+        }
+
+        frame = Frame_last_stashed;
+        /* also try to find it in the stash */
+        for (; frame != NULL; frame = frame->previous_stashed) {
+            if (frame->number == (unsigned) data->u.integer) {
+                break;
+            }
+        }
+
+        if (frame == NULL) {
+            break;
+        }
+
+        /* make the frame no longer stashed */
+        unlink_frame_from_stash(frame);
+        /* clear the old frame and stash it */
+        (void) stash_frame(Frame_focus);
+        /* put the new frame into the focused frame */
+        replace_frame(Frame_focus, frame);
+        /* destroy this now empty frame */
+        destroy_frame(frame);
+        /* focus a window that might have appeared */
+        set_focus_window(Frame_focus->window);
+        break;
+
+    /* focus the last window that failed to show through _NET_ACTIVE_WINDOW */
+    case ACTION_FOCUS_AUTO:
+        if (Window_last_activated == NULL) {
+            break;
+        }
+        if (Window_last_activated->reference.id == None) {
+            /* the window is long gone */
+            dereference_window(Window_last_activated);
+            Window_last_activated = NULL;
+            break;
+        }
+        show_window(Window_last_activated);
+        set_focus_window_with_frame(Window_last_activated);
+        break;
+
+    /* allow/disallow automatic focus on the currently selected window */
+    case ACTION_FOCUS_AUTO_I:
         if (window == NULL) {
             break;
         }
-        hide_window(window);
+        window->state.is_auto_focus_allowed = !!data->u.integer;
         break;
 
-    /* focus a window */
-    case ACTION_FOCUS_WINDOW:
-        set_focus_window_with_frame(window);
-        if (window != NULL) {
-            update_window_layer(window);
+    /* move the focus to the child frame */
+    case ACTION_FOCUS_CHILD:
+        if (Frame_focus->left != NULL) {
+            if (Frame_focus->moved_from_left) {
+                Frame_focus = Frame_focus->left;
+            } else {
+                Frame_focus = Frame_focus->right;
+            }
         }
+        break;
+
+    /* focus the ith child of the current frame */
+    case ACTION_FOCUS_CHILD_I:
+        count = data->u.integer;
+        if (count < 0) {
+            count = INT32_MAX;
+        }
+        for (frame = Frame_focus; frame->left != NULL && count > 0; count--) {
+            if (frame->moved_from_left) {
+                frame = frame->left;
+            } else {
+                frame = frame->right;
+            }
+        }
+        Frame_focus = frame;
+        break;
+
+    /* move the focus to the frame below */
+    case ACTION_FOCUS_DOWN:
+        move_to_below_frame(Frame_focus, false);
+        break;
+
+    /* move the focus to the leaf frame */
+    case ACTION_FOCUS_LEAF:
+        /* move to the count'th child */
+        for (frame = Frame_focus; frame->left != NULL; ) {
+            if (frame->moved_from_left) {
+                frame = frame->left;
+            } else {
+                frame = frame->right;
+            }
+        }
+
+        Frame_focus = frame;
+        break;
+
+    /* move the focus to the left frame */
+    case ACTION_FOCUS_LEFT:
+        move_to_left_frame(Frame_focus, false);
+        break;
+
+    /* focus given monitor by name */
+    case ACTION_FOCUS_MONITOR: {
+        Monitor *monitor;
+
+        monitor = get_monitor_by_pattern(data->u.string);
+        if (monitor == NULL) {
+            LOG_ERROR("no monitor matches %s\n",
+                     data->u.string);
+            break;
+        }
+
+        Frame_focus = monitor->frame;
+        break;
+    }
+
+    /* move the focus to the parent frame */
+    case ACTION_FOCUS_PARENT:
+        if (Frame_focus->parent != NULL) {
+            if (Frame_focus == Frame_focus->parent->left) {
+                Frame_focus->parent->moved_from_left = true;
+            } else {
+                Frame_focus->parent->moved_from_left = false;
+            }
+            Frame_focus = Frame_focus->parent;
+        }
+        break;
+
+    /* move the focus to the ith parent frame */
+    case ACTION_FOCUS_PARENT_I:
+        count = data->u.integer;
+        if (count < 0) {
+            count = INT32_MAX;
+        }
+        for (frame = Frame_focus; frame->parent != NULL && count > 0; count--) {
+            if (frame == frame->parent->left) {
+                frame->parent->moved_from_left = true;
+            } else {
+                frame->parent->moved_from_left = false;
+            }
+            frame = frame->parent;
+        }
+        Frame_focus = frame;
+        break;
+
+
+    /* move the focus to the right frame */
+    case ACTION_FOCUS_RIGHT:
+        move_to_right_frame(Frame_focus, false);
+        break;
+
+    /* move the focus to the root frame */
+    case ACTION_FOCUS_ROOT:
+        Frame_focus = get_root_frame(Frame_focus);
+        break;
+
+    /* move the focus to the root frame of given monitor */
+    case ACTION_FOCUS_ROOT_S: {
+        Monitor *monitor;
+
+        monitor = get_monitor_by_pattern(data->u.string);
+        if (monitor == NULL) {
+            LOG_ERROR("no monitor matches %s\n",
+                    data->u.string);
+            break;
+        }
+
+        Frame_focus = monitor->frame;
+        break;
+    }
+
+    /* move the focus to the frame above */
+    case ACTION_FOCUS_UP:
+        move_to_above_frame(Frame_focus, false);
+        break;
+
+    /* focus the window with given number */
+    case ACTION_FOCUS_WINDOW_I:
+        window = get_window_by_number(data->u.integer);
+        /* fall through */
+    /* refocus the current window */
+    case ACTION_FOCUS_WINDOW:
+        if (window == NULL || window == Window_focus) {
+            break;
+        }
+
+        show_window(window);
+        update_window_layer(window);
+        set_focus_window_with_frame(window);
+        break;
+
+    /* the font used for rendering */
+    case ACTION_FONT:
+        set_font(data->u.string);
+        break;
+
+    /* the foreground color of the fensterchef windows */
+    case ACTION_FOREGROUND:
+        configuration.foreground = data->u.integer;
+        break;
+
+    /* the foreground color of the fensterchef windows */
+    case ACTION_FOREGROUND_ERROR:
+        configuration.foreground_error = data->u.integer;
+        break;
+
+    /* the inner gaps between frames and windows */
+    case ACTION_GAPS_INNER:
+        configuration.gaps_inner[0] = data->u.integer;
+        configuration.gaps_inner[1] = data->u.integer;
+        configuration.gaps_inner[2] = data->u.integer;
+        configuration.gaps_inner[3] = data->u.integer;
+        break;
+
+    /* set the horizontal and vertical inner gaps */
+    case ACTION_GAPS_INNER_I_I:
+        configuration.gaps_inner[0] = data[0].u.integer;
+        configuration.gaps_inner[1] = data[1].u.integer;
+        configuration.gaps_inner[2] = data[0].u.integer;
+        configuration.gaps_inner[3] = data[1].u.integer;
+        break;
+
+    /* set the left, right, top and bottom inner gaps */
+    case ACTION_GAPS_INNER_I_I_I_I:
+        configuration.gaps_inner[0] = data[0].u.integer;
+        configuration.gaps_inner[1] = data[1].u.integer;
+        configuration.gaps_inner[2] = data[2].u.integer;
+        configuration.gaps_inner[3] = data[3].u.integer;
+        break;
+
+    /* the outer gaps between frames and monitors */
+    case ACTION_GAPS_OUTER:
+        configuration.gaps_outer[0] = data->u.integer;
+        configuration.gaps_outer[1] = data->u.integer;
+        configuration.gaps_outer[2] = data->u.integer;
+        configuration.gaps_outer[3] = data->u.integer;
+        break;
+
+    /* set the horizontal and vertical outer gaps */
+    case ACTION_GAPS_OUTER_I_I:
+        configuration.gaps_outer[0] = data[0].u.integer;
+        configuration.gaps_outer[1] = data[1].u.integer;
+        configuration.gaps_outer[2] = data[0].u.integer;
+        configuration.gaps_outer[3] = data[1].u.integer;
+        break;
+
+    /* set the left, right, top and bottom outer gaps */
+    case ACTION_GAPS_OUTER_I_I_I_I:
+        configuration.gaps_outer[0] = data[0].u.integer;
+        configuration.gaps_outer[1] = data[1].u.integer;
+        configuration.gaps_outer[2] = data[2].u.integer;
+        configuration.gaps_outer[3] = data[3].u.integer;
+        break;
+
+    /* split the current frame horizontally */
+    case ACTION_HINT_SPLIT_HORIZONTALLY:
+        Frame_focus->split_direction = FRAME_SPLIT_HORIZONTALLY;
+        /* reload the children if any */
+        resize_frame(Frame_focus, Frame_focus->x, Frame_focus->y,
+                Frame_focus->width, Frame_focus->height);
+        break;
+
+    /* split the current frame vertically */
+    case ACTION_HINT_SPLIT_VERTICALLY:
+        Frame_focus->split_direction = FRAME_SPLIT_VERTICALLY;
+        /* reload the children if any */
+        resize_frame(Frame_focus, Frame_focus->x, Frame_focus->y,
+                Frame_focus->width, Frame_focus->height);
+        break;
+
+    /* show an indication on the current frame */
+    case ACTION_INDICATE:
+        indicate_frame(Frame_focus);
         break;
 
     /* start moving a window with the mouse */
@@ -566,20 +1376,401 @@ void do_action(const Action *action, Window *window)
         initiate_window_move_resize(window, _NET_WM_MOVERESIZE_AUTO, -1, -1);
         break;
 
-    /* go to the next window in the window list */
-    case ACTION_NEXT_WINDOW:
-        set_showable_tiling_window(false);
+    /* hide the window with given number */
+    case ACTION_MINIMIZE_WINDOW_I:
+        window = get_window_by_number(data->u.integer);
+        /* fall through */
+    /* hide the currently active window */
+    case ACTION_MINIMIZE_WINDOW:
+        if (window == NULL) {
+            break;
+        }
+        hide_window(window);
         break;
 
-    /* go to the previous window in the window list */
-    case ACTION_PREVIOUS_WINDOW:
-        set_showable_tiling_window(true);
+    /* the modifiers to ignore */
+    case ACTION_MODIFIERS_IGNORE:
+        set_ignored_modifiers(data->u.integer);
         break;
 
+    /* move the current window down */
+    case ACTION_MOVE_WINDOW_DOWN:
+        if (window == NULL || window->state.mode == WINDOW_MODE_TILING) {
+            move_frame_down(Frame_focus);
+            break;
+        }
+        if (window->state.mode == WINDOW_MODE_FULLSCREEN ||
+                window->state.mode == WINDOW_MODE_FLOATING) {
+            move_window_down(window);
+        }
+        break;
+
+    /* move the current window to the left */
+    case ACTION_MOVE_WINDOW_LEFT:
+        if (window == NULL || window->state.mode == WINDOW_MODE_TILING) {
+            move_frame_left(Frame_focus);
+            break;
+        }
+        if (window->state.mode == WINDOW_MODE_FULLSCREEN ||
+                window->state.mode == WINDOW_MODE_FLOATING) {
+            move_window_left(window);
+        }
+        break;
+
+    /* move the current window to the right */
+    case ACTION_MOVE_WINDOW_RIGHT:
+        if (window == NULL || window->state.mode == WINDOW_MODE_TILING) {
+            move_frame_right(Frame_focus);
+            break;
+        }
+        if (window->state.mode == WINDOW_MODE_FULLSCREEN ||
+                window->state.mode == WINDOW_MODE_FLOATING) {
+            move_window_right(window);
+        }
+        break;
+
+    /* move the current window up */
+    case ACTION_MOVE_WINDOW_UP:
+        if (window == NULL || window->state.mode == WINDOW_MODE_TILING) {
+            move_frame_up(Frame_focus);
+            break;
+        }
+        if (window->state.mode == WINDOW_MODE_FULLSCREEN ||
+                window->state.mode == WINDOW_MODE_FLOATING) {
+            move_window_up(window);
+        }
+        break;
+
+    /* move the current frame down */
+    case ACTION_MOVE_DOWN:
+        move_frame_down(Frame_focus);
+        break;
+
+    /* move the current frame to the left */
+    case ACTION_MOVE_LEFT:
+        move_frame_left(Frame_focus);
+        break;
+
+    /* move the current frame to the right */
+    case ACTION_MOVE_RIGHT:
+        move_frame_right(Frame_focus);
+        break;
+
+    /* move the current frame up */
+    case ACTION_MOVE_UP:
+        move_frame_up(Frame_focus);
+        break;
+
+    /* move the current window */
+    case ACTION_MOVE_WINDOW_BY: {
+        Monitor *monitor;
+        int x, y;
+
+        if (window == NULL) {
+            break;
+        }
+
+        monitor = get_monitor_containing_window(window);
+        x = translate_integer_data(monitor, &data[0], true);
+        y = translate_integer_data(monitor, &data[1], false);
+        resize_frame_or_window_by(window, -x, -y, x, y);
+        break;
+    }
+
+    /* move the current window relative to the current monitor */
+    case ACTION_MOVE_WINDOW_TO: {
+        Monitor *monitor;
+        int x, y;
+
+        if (window == NULL) {
+            break;
+        }
+
+        monitor = get_monitor_containing_window(window);
+        x = translate_integer_data(monitor, &data[0], true);
+        y = translate_integer_data(monitor, &data[1], false);
+        resize_frame_or_window_by(window,
+                -(monitor->x + x - window->x), -(monitor->y + y - window->y),
+                  monitor->x + x - window->x,    monitor->y + y - window->y);
+        break;
+    }
+
+    /* no operation */
+    case ACTION_NOP:
+        /* nothing */
+        break;
+
+    /* the duration the notification window stays for */
+    case ACTION_NOTIFICATION_DURATION:
+        configuration.notification_duration = data->u.integer;
+        break;
+
+    /* the value at which a window should be counted as overlapping a monitor */
+    case ACTION_OVERLAP:
+        configuration.overlap = data->u.integer;
+        break;
+
+    /* remove the current frame and replace it with a frame from the stash */
+    case ACTION_POP_STASH: {
+        Frame *const pop = pop_stashed_frame();
+        if (pop == NULL) {
+            break;
+        }
+        stash_frame(Frame_focus);
+        replace_frame(Frame_focus, pop);
+        destroy_frame(pop);
+        /* focus any window that might have appeared */
+        set_focus_window(Frame_focus->window);
+        break;
+    }
+
+    /* quit fensterchef */
+    case ACTION_QUIT:
+        Fensterchef_is_running = false;
+        break;
+
+    /* reload the configuration file */
+    case ACTION_RELOAD_CONFIGURATION:
+        reload_configuration();
+        break;
+
+    /* remove frame with given number */
+    case ACTION_REMOVE_I:
+        frame = get_frame_by_number(data->u.integer);
+        if (frame == NULL) {
+            break;
+        }
+        /* fall through */
     /* remove the current frame */
-    case ACTION_REMOVE_FRAME:
-        (void) stash_frame(focus_frame);
-        (void) remove_void(focus_frame);
+    case ACTION_REMOVE:
+        (void) stash_frame(frame);
+        /* remove the frame if it is not a root frame */
+        if (frame->parent != NULL) {
+            remove_frame(frame);
+            destroy_frame(frame);
+        }
+
+        /* TODO: is this needed? */
+        /* if nothing is focused/no longer focused, focus the window within the
+         * current frame
+         */
+        if (Window_focus == NULL) {
+            set_focus_window(Frame_focus->window);
+        }
+        break;
+
+    /* resize the current window */
+    case ACTION_RESIZE_WINDOW_BY: {
+        Monitor *monitor;
+        int width_change, height_change;
+
+        if (window == NULL) {
+            break;
+        }
+
+        monitor = get_monitor_containing_window(window);
+        width_change = translate_integer_data(monitor, &data[0], true);
+        height_change = translate_integer_data(monitor, &data[1], false);
+        resize_frame_or_window_by(window, 0, 0, width_change, height_change);
+        break;
+    }
+
+    /* resize the current window relative to the current monitor*/
+    case ACTION_RESIZE_WINDOW_TO: {
+        Monitor *monitor;
+        int width, height;
+
+        if (window == NULL) {
+            break;
+        }
+
+        monitor = get_monitor_containing_window(window);
+        width = translate_integer_data(monitor, &data[0], true);
+        height = translate_integer_data(monitor, &data[1], false);
+        resize_frame_or_window_by(window,
+                0, 0,
+                width - window->width,
+                height - window->height);
+        break;
+    }
+
+    /* restore layout with given file path */
+    case ACTION_RESTORE_LAYOUT_S: {
+        enum dump_parse_error result;
+
+        result = restore_frames_and_windows(data->u.string);
+        if (result == DUMP_IO_ERROR) {
+            LOG_ERROR("can not read from file %s: %s\n",
+                    data->u.string, strerror(errno));
+        } else if (result != DUMP_SUCCESS) {
+            LOG_ERROR("file %s is not a valid dump file: %s\n",
+                    data->u.string, get_string_of_dump_parse_error(result));
+        }
+        break;
+    }
+
+    /* run a shell program */
+    case ACTION_RUN:
+        (void) run_shell(data->u.string);
+        break;
+
+    /* select the focused window */
+    case ACTION_SELECT_FOCUS:
+        Window_selected = Window_focus;
+        break;
+
+    /* select the pressed window */
+    case ACTION_SELECT_PRESSED:
+        Window_selected = Window_pressed;
+        break;
+
+    /* select the window with given number */
+    case ACTION_SELECT_WINDOW:
+        Window_selected = get_window_by_number(data->u.integer);
+        break;
+
+    /* set all default settings */
+    case ACTION_SET_DEFAULTS:
+        set_default_configuration();
+        break;
+
+    /* set the mode of the current window to floating */
+    case ACTION_SET_FLOATING:
+        if (window == NULL) {
+            break;
+        }
+        set_window_mode(window, WINDOW_MODE_FLOATING);
+        break;
+
+    /* set the mode of the current window to fullscreen */
+    case ACTION_SET_FULLSCREEN:
+        if (window == NULL) {
+            break;
+        }
+        set_window_mode(window, WINDOW_MODE_FULLSCREEN);
+        break;
+
+    /* set the mode of the current window to tiling */
+    case ACTION_SET_TILING:
+        if (window == NULL) {
+            break;
+        }
+        set_window_mode(window, WINDOW_MODE_TILING);
+        break;
+
+    /* show an error message */
+    case ACTION_SHOW_ERROR:
+        set_error_notification(data->u.string);
+        break;
+
+    /* toggle visibility of the interactive application chooser */
+    case ACTION_SHOW_APPLICATIONS:
+        (void) show_application_chooser();
+        break;
+
+    /* toggle visibility of the interactive window chooser */
+    case ACTION_SHOW_WINDOWS:
+        (void) show_window_chooser();
+        break;
+
+    /* show the user a message */
+    case ACTION_SHOW_MESSAGE:
+        monitor = get_focused_monitor();
+        set_system_notification(data->u.string,
+                monitor->x + monitor->width / 2,
+                monitor->y + monitor->height / 2);
+        break;
+
+    /* go to the next window in the window list */
+    case ACTION_SHOW_NEXT_WINDOW:
+        is_previous = false;
+        /* fall through */
+    /* go to the previous window in the window list */
+    case ACTION_SHOW_PREVIOUS_WINDOW:
+        set_showable_tiling_window(1, is_previous);
+        break;
+
+    /* go to the ith next window in the window list */
+    case ACTION_SHOW_NEXT_WINDOW_I:
+        is_previous = false;
+        /* fall through */
+    /* go to the previous window in the window list */
+    case ACTION_SHOW_PREVIOUS_WINDOW_I:
+        count = data->u.integer;
+        if (count < 0) {
+            count *= -1;
+            is_previous = !is_previous;
+        }
+        set_showable_tiling_window(count, is_previous);
+        break;
+
+    /* show a message by getting output from a shell program */
+    case ACTION_SHOW_RUN:
+        shell = run_shell_and_get_output(data->u.string);
+        if (shell == NULL) {
+            break;
+        }
+        monitor = get_focused_monitor();
+        set_system_notification(shell,
+                monitor->x + monitor->width / 2,
+                monitor->y + monitor->height / 2);
+        free(shell);
+        break;
+
+    /* show the window with given number */
+    case ACTION_SHOW_WINDOW_I:
+        window = get_window_by_number(data->u.integer);
+        /* fall through */
+    /* show a window */
+    case ACTION_SHOW_WINDOW:
+        if (window == NULL || window->state.is_visible) {
+            break;
+        }
+
+        show_window(window);
+        update_window_layer(window);
+        break;
+
+    /* split the current frame horizontally */
+    case ACTION_SPLIT_HORIZONTALLY:
+        split_frame(Frame_focus, NULL, false, FRAME_SPLIT_HORIZONTALLY);
+        break;
+
+    /* split the current frame horizontally */
+    case ACTION_SPLIT_LEFT_HORIZONTALLY:
+        split_frame(Frame_focus, NULL, true, FRAME_SPLIT_HORIZONTALLY);
+        break;
+
+    /* split the current frame vertically */
+    case ACTION_SPLIT_LEFT_VERTICALLY:
+        split_frame(Frame_focus, NULL, true, FRAME_SPLIT_VERTICALLY);
+        break;
+
+    /* split the current frame vertically */
+    case ACTION_SPLIT_VERTICALLY:
+        split_frame(Frame_focus, NULL, false, FRAME_SPLIT_VERTICALLY);
+        break;
+
+    /* the text padding within the fensterchef windows */
+    case ACTION_TEXT_PADDING:
+        configuration.text_padding = data->u.integer;
+        break;
+
+    /* change the focus from tiling to non tiling or vise versa */
+    case ACTION_TOGGLE_FOCUS:
+        toggle_focus();
+        break;
+
+    /* toggles the fullscreen state of the currently focused window */
+    case ACTION_TOGGLE_FULLSCREEN:
+        if (window == NULL) {
+            break;
+        }
+        set_window_mode(window,
+                window->state.mode == WINDOW_MODE_FULLSCREEN ?
+                (window->state.previous_mode == WINDOW_MODE_FULLSCREEN ?
+                    WINDOW_MODE_FLOATING : window->state.previous_mode) :
+                WINDOW_MODE_FULLSCREEN);
         break;
 
     /* changes a non tiling window to a tiling window and vise versa */
@@ -592,112 +1783,54 @@ void do_action(const Action *action, Window *window)
                 WINDOW_MODE_FLOATING : WINDOW_MODE_TILING);
         break;
 
-    /* toggles the fullscreen state of the currently focused window */
-    case ACTION_TOGGLE_FULLSCREEN:
-        if (window != NULL) {
-            set_window_mode(window,
-                    window->state.mode == WINDOW_MODE_FULLSCREEN ?
-                    window->state.previous_mode : WINDOW_MODE_FULLSCREEN);
+    /* start a newly appeared executable */
+    case ACTION_UPDATE:
+        Fensterchef_is_update_requested = true;
+        break;
+    
+
+    /* add a relation */
+    case ACTION_RELATION:
+        set_window_relation(&data->u.relation);
+        break;
+
+    /* remove the currently running relation */
+    case ACTION_UNRELATE:
+        remove_current_window_relation();
+        break;
+
+    /* remove the relations matching given pattern */
+    case ACTION_UNRELATE_S:
+        remove_window_relations_by_pattern(data->u.string);
+        break;
+
+    /* set a button binding */
+    case ACTION_BUTTON_BINDING:
+        set_button_binding(&data->u.button);
+        break;
+
+    /* set a key binding */
+    case ACTION_KEY_BINDING:
+        set_key_binding(&data->u.key);
+        break;
+
+    /* undo a group */
+    case ACTION_UNGROUP: {
+        struct parse_group *group;
+
+        group = find_group(data->u.string);
+        if (group == NULL) {
+            LOG_ERROR("group %s cannot be unbound as it does not exist\n",
+                    data->u.string);
+        } else {
+            undo_group(group);
         }
         break;
+    }
 
-    /* change the focus from tiling to non tiling or vise versa */
-    case ACTION_TOGGLE_FOCUS:
-        toggle_focus();
-        break;
 
-    /* split the current frame horizontally */
-    case ACTION_SPLIT_HORIZONTALLY:
-        split_frame(focus_frame, FRAME_SPLIT_HORIZONTALLY);
-        break;
-
-    /* split the current frame vertically */
-    case ACTION_SPLIT_VERTICALLY:
-        split_frame(focus_frame, FRAME_SPLIT_VERTICALLY);
-        break;
-
-    /* move the focus to the frame above */
-    case ACTION_FOCUS_UP:
-        move_to_above_frame(focus_frame, false);
-        break;
-
-    /* move the focus to the left frame */
-    case ACTION_FOCUS_LEFT:
-        move_to_left_frame(focus_frame, false);
-        break;
-
-    /* move the focus to the right frame */
-    case ACTION_FOCUS_RIGHT:
-        move_to_right_frame(focus_frame, false);
-        break;
-
-    /* move the focus to the frame below */
-    case ACTION_FOCUS_DOWN:
-        move_to_below_frame(focus_frame, false);
-        break;
-
-    /* exchange the current frame with the above one */
-    case ACTION_EXCHANGE_UP:
-        move_to_above_frame(focus_frame, true);
-        break;
-
-    /* exchange the current frame with the left one */
-    case ACTION_EXCHANGE_LEFT:
-        move_to_left_frame(focus_frame, true);
-        break;
-
-    /* exchange the current frame with the right one */
-    case ACTION_EXCHANGE_RIGHT:
-        move_to_right_frame(focus_frame, true);
-        break;
-
-    /* exchange the current frame with the below one */
-    case ACTION_EXCHANGE_DOWN:
-        move_to_below_frame(focus_frame, true);
-        break;
-
-    /* toggle visibility of the interactive window list */
-    case ACTION_SHOW_WINDOW_LIST:
-        if (show_window_list() == ERROR) {
-            unmap_client(&window_list.client);
-        }
-        break;
-
-    /* quit fensterchef */
-    case ACTION_QUIT:
-        is_fensterchef_running = false;
-        break;
-
-    /* run a shell program */
-    case ACTION_RUN:
-        run_shell((char*) action->parameter.string);
-        break;
-
-    /* show the user a message */
-    case ACTION_SHOW_MESSAGE:
-        set_notification((utf8_t*) action->parameter.string,
-                focus_frame->x + focus_frame->width / 2,
-                focus_frame->y + focus_frame->height / 2);
-        break;
-
-    /* show a message by getting output from a shell script */
-    case ACTION_SHOW_MESSAGE_RUN:
-        shell = run_shell_and_get_output((char*) action->parameter.string);
-        set_notification((utf8_t*) shell,
-                focus_frame->x + focus_frame->width / 2,
-                focus_frame->y + focus_frame->height / 2);
-        free(shell);
-        break;
-
-    /* resize the edges of the current window */
-    case ACTION_RESIZE_BY:
-        resize_frame_or_window_by(window, action->parameter.quad[0],
-                action->parameter.quad[1],
-                action->parameter.quad[2],
-                action->parameter.quad[3]);
-        break;
-
-    /* not a real action */
+    /* not real actions */
+    case ACTION_SIMPLE_MAX:
     case ACTION_MAX:
         break;
     }

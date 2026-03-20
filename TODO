@@ -1,0 +1,716 @@
+TODO file for fensterchef
+? - Maybe
+X - Trash
+M - Maintenance
+! - Bug
+[Tasks] - Tasks that need to be done
+[In Progress] - Tasks being done
+[Recheck] - Tasks that need to be checked if they still apply
+[Trash] - Tasks thrown out
+[Done] - Finished tasks
+
+[Tasks]
+#136 ? M Add dual link again
+    The dual link between window and frame was difficult to manage but lots has
+    changed, try to add it again
+
+#151 ? Allow floating windows to be resized with the mouse
+    Currently a special binding is needed to resize windows with the mouse.
+    Instead, we can listen for MotionNotify events on the window, set the cursor
+    when it is at the corner and allow resizing at that moment instead of
+    forwarding those events to the underlying window.
+    Maybe this should be done with window decorations when I decided to add
+    them?
+
+#153 Change focus window number to show different windows
+    When two windows have the same number and the user tries to show a window
+    with a specific number, try to find a different window with the same number.
+
+#154 ! Improve stash management to clean huge stashes
+    The stash keeps the entire history and never clears entries that might no
+    longer be needed.  Try to make the stash auto manage itself to stop it from
+    growing indefinitely.
+
+#155 ! Add log cycling
+    Logs should be deleted when they are too old so the user does not end up
+    with Gigabytes of memory occupied by ancient log files.
+
+#159 Add auto tiling
+    Make a design on how auto tiling should look like and implement it.
+
+#160 ...
+
+#165 Add bar
+    I just want to try this and see how it goes to learn about bars.
+
+#175 Add compositing features
+    The window manager knows best how its own windows should behave.
+    Try to add compositing features starting with transparency, anti-aliasing
+    for rounded corners and shadows.  Next could be experimental animations.
+
+#185 Add custom window borders
+    Yes, it is happening soon...
+    Use the shape extension for very advanced graphical beauties
+
+[In Progress]
+#117 Write test code
+    Write test code for... everything
+
+[Recheck]
+#45 ! Fix weird flicker of Steam window
+    Steam flickers back and forth (once) when hovering over a menu item
+
+#7 ! Discord hides itself again on WM_CHANGE_STATE
+    When starting Discord, it sometimes hides itself again
+
+#80 ? Add the dialog window mode
+    Add a window mode for dialog windows
+    WHY IS THIS NEEDED AGAIN??
+    There was some issue with dialog windows in some application but I do not
+    remember...
+
+#126 ! Window loses focus after reloading configuration
+    When reloading the configuration, the currently focused window loses its
+    focus.  This stopped happening...
+
+#120 ! CS2 is difficult to open while another window is open
+    When CS2 is hidden and then shown, it hides itself again.  Investigate it.
+    Simply ignoring WM_CHANGE_STATE for now...
+
+#137 ? Is crashing when monitors 0
+    Check if fensterchef can start if there are no monitors
+
+[Trash]
+#10 X Add frame indication for empty frames
+    Make it so empty frames have a border indicating focus
+
+#20/#10 X Make extra window for empty frames
+    ?? Extra translucent border windows have to be shown
+
+#34 ? Think about how numbers should be handled when stashing
+    What does this task even mean
+
+#24 X Monitor frames wrong when screen size changes
+    Exactly in what circumstances this bug appears is not known but running
+    randfix.sh gets a window in a bugged state, this might have to do with
+    stashing away frames. randfix.sh looks like:
+    ```
+    #!/bin/bash
+
+    MON1=HDMI-A-0
+    MON2=DVI-D-1
+
+    xrandr --output $MON1 --off
+    xrandr --output $MON2 --off
+    xrandr --output $MON2 --auto
+    xrandr --output $MON1 --auto
+    xrandr --output $MON1 --right-of $MON2
+    xrandr --output $MON1 --primary
+    xrandr --output $MON1 --dpi 96
+    xrandr --output $MON2 --dpi 96
+    ```
+    No window gets in a bugged state it seems anymore. This is just a poor
+    script to reconfigure the monitors.
+
+#64 X Add variables to scripting
+    Add two keywords local (local variable) and set (global variable).
+
+#77 X Allow multi-line for notification windows
+    Line breaks should be considered and text wrapping should be used when the
+    text overflows a maximum configured width
+
+#78 X Add XML based markup options
+    Make text formatting with options for bold <b> ... </b>,
+    italic <i> ... </i>, underline <u> ... </u>,
+    hyperlinks <a href="..."> ... </a> and
+    images <img src="..." alt="..."/>
+
+#79 X Add DBUS support for a notification server
+    Allow fensterchef to act as a notification server so notifications can be
+    shown using `notify-send`
+
+#81 X Simplify notification windows again
+    ...or completely remove them.  It is a bunch of code for nothing.  Programs
+    like dunst do a great job at this.  The best solution is probably to
+    downgrade to core fonts so that the absolute minimal text is shown.  The
+    user can then configure to use more advanced programs.
+    This is a bad idea for various reasons.
+
+#70 X Re-add the wiki
+    Add the Github wiki again
+
+#92 X Moving into empty frame on another monitor
+    Moving into an empty frame that is on another monitor should ALWAYS remove
+    it. NO!
+
+#37 X Add hooks
+    When certain events occur like showing a window, the user should be able to
+    make a hook for an alternative action that should occur (instead of the
+    default of focusing this window)
+    This is implemented but only for mapping windows for the first time
+
+#39 X Add the set action that can set a variable
+    The set action would have the syntax `set <section>.<name> = <value>` and
+    dynamically reload the part of the configuration that is relevant
+
+#25 X Make string arguments more shell like
+    One should be able to specify in quotes: "what is here ".
+    So if a line starts with `"`, then this should be interpreted as string.
+    Also this can be escaped as well as ';' with a backslash.
+
+#59 X Make it run more than startup actions using external command
+    Right now using -e, only actions can be sent. Make it so entire
+    configurations can be sent. This is helpful when setting a specific layout
+
+#43 X Make perfect focus management
+    Make it so the focus can not be broken by focus_thief.
+    Make a proper design in your head how focus can be managed. The difficulty
+    is that override redirect windows can have focus.
+
+#104 X WM_HINTS constantly changes
+    WM_HINTS is constantly update, figure out if this is our fault.
+    The reason is simple: Applications change WM_HINTS when they gain focus.
+
+#13 X Unable to reload configuration after an error
+    When reloading the configuration and an error was detected the bind for
+    reloading no longer works. It works on an initial load if the parser fails
+
+#1 X Hover events not working in firefox sometimes
+    This is fixed by resizing the window, try to find out why it happens in the
+    first place and when it happens. Seems to be fixed
+
+#63 ? Replace deletion of atom with setting of another
+    When a command is sent via the FENSTERCHEF_COMMAND atom, it is currently
+    deleted. Instead, set FENSTERCHEF_RETURN on the window.
+
+#107 ? Add window mode descriptions
+    Add a format to describe window modes.  For example whether they can
+    move/resize or their identifying letter, what kind of border they have.
+    This could then also be configurable.
+
+[Done]
+#9 Add maintainability macros
+    Add macros that highly improve the maintainability
+
+#12 ! Fullscreen window does not get out of fullscreen
+    Fullscreen windows can not be put out of fullscreen when they are
+    initially in such state
+
+#3 Equalize action
+    Make an action that equalizes all frames within the selected frame
+
+#6 ! Issues when clicking to focus with --transparent
+    Some applications (like firefox or CS2) have an unexpected behaviour
+    together with such a mouse bind
+
+#16 Consider what windows receive input focus and initial state
+    Read the book and check what windows should receive input and consider the
+    initial state
+
+#17 Center floating windows and ignore their position size hints
+    Pretty much what the title says
+
+#11 Add inactive border
+    When a floating window is focused, the frame that lost focus should get a
+    different color indicating it is the currently focused frame
+
+#19 Show current frame indicator options
+    Now the current frame indicator is shown more sensibly
+
+#21 Add desktop window mode
+    This window is always in the background
+
+#22 ! Window does not get focus
+    Windows with he WM_TAKE_FOCUS protocol should fuck right off because they do
+    not even take focus, the input flag needs to be considered here instead
+
+#23 ! Windows not supposed to have a border get a border upon configuration reload
+    Exactly the title
+
+#26 Add optional arguments
+    Let some actions have optional arguments. If they expect an integer and no
+    number is given, the number `1` should be implied.
+
+#2 Ratio for frames
+    Add a ratio to a frame so that the sizes are resistent to when they become
+    very tiny. Use this to automatically resize back when clearing child
+
+#27 ! Make focus checking more sensible
+    Make checking if a window is focusable or not more sensible
+
+#15 Add auto split option
+    Add an option in the configuration so that when a new window spawns, the
+    current frame is split automatically
+
+#28 ! Old focus is set to pointer
+    These pointers might be freed and reallocated. The address may not change so
+    the program does not know if any pointer changed
+    Solution 1: Reference count
+    Solution 2 (better I think): Set the old focus to NULL when these objects
+    are freed
+
+#29 ! Errors are shown after window is destroyed
+    When a window is destroyed, sometimes errors are thrown by xcb that should
+    be addressed.
+    This will not be fixed because it is effort for pretty much no return.
+
+#5 Add frame numbers and assignment
+    Frames should be able to hold onto specific windows. When these specific
+    windows are hidden and then shown again, they should reappear in the same
+    place, this could also be used to make initial layouts, maybe like:
+    ```
+    [startup]
+    split-horizontally
+    assign 1
+    focus-right
+    assign 2
+    run st -n 1
+    run firefox
+
+    [assignment]
+    first-window-number 1000
+    1 1 ; st-256color
+    2 [Nn]avigator ; [Ff]irefox
+    999 * ; [Dd]iscord
+
+    # And a bind to open discord on the current frame (even when moving away):
+    [keyboard]
+    Super+1 focus-frame 999
+
+    Super+d assign 999 ; run discord
+    ```
+
+#32 Make additional action for hinting split direction
+    It was not a good idea to change the split action, revert the change!!
+    And then make an additional action for hinting.
+
+#31 ! Floating window toggle not removing void if configured
+    When auto-remove-void is configured, then making a window floating should
+    remove the gap it leaves, similar for auto-remove
+
+#33 ! Exchange into empty frame
+    When exchanging into an empty frame, it feels unnatural when some
+    configuration options are turned on
+
+#30 Find a better monitor to center floating windows
+    Right now the existing geometry of the window is used to determine the
+    monitor to center the window in. Use the focus_frame/focus_window
+
+#35 ! Fix auto equalization of frames
+    Too many frames are equalized when auto-equalize is enable. It needs to move
+    up to the correct parent frame and not to the root!
+
+#4 Add cursor management and resource management
+    Handle the setting of the cursor and manage X resources
+
+#36 Add way to inject commmands
+    Do it how ratpoison does it which is quite sensible: Create a window with
+    the FENSTERCHEF_COMMAND property which contains a list of actions to execute
+
+#38 Add keycodes to binds
+    When a number is used instead of a word starting with a letter for a key
+    symbol, interpret it as a keycode
+
+#40 Add parser include command
+    There should be an identifier usable in any label that includes another
+    configuration file
+
+#41 Add actions to assignments
+    Add actions to the end of assignments that are executed when a window
+    receives the window number
+
+#42 Better position for floating windows/dock windows
+    When two dock windows appear on the same edge, they currently overlap.
+    Improve this. And then two floating windows spawn, they are completely
+    covering each over. Add an offset like Windows. Maybe add a configurable
+    option for how large floating windows should be?
+
+#44 Handle the add of _NET_WM_STATE_MAXIMIZED_HORZ
+    The steam window uses this to maximize itself.
+
+#48 Add move actions
+    Add actions to move windows
+
+#46 Add "other" action
+    This action should pop a frame from the space and replace it with the
+    current frame
+
+#47 Add left/top split actions
+    These actions should split like usually but in the other direction
+
+#53 ! Numbers assigned wrongly
+    When there are no assignments, windows are not number starting from the
+    configured first-window-number
+
+#49 Make refocus more natural when a window is hidden
+    When a non tiling window is hidden, the focus may move to a different
+    monitor which is unnatural
+
+#52 ! Let more frames tank size
+    When resizing a frame, let it push frames
+
+#54 Handle overlapping monitors
+    When monitors overlap, one should be ignored
+
+#55 Add center-to action
+    This action should center a window to a specific monitor by name (glob
+    pattern)
+
+#56 Add resize-to action
+    This action should set the size and position of a window relative to the
+    monitor it is on
+
+#60 Add core fonts
+    Use core fonts as a fallback font
+
+#61 Add reference counts to window and frame
+    This will allow to clean up a lot of code
+
+#50 ! The default of pressing MiddleButton to close a window
+    When doing this, the below window gets the event as well
+
+#62 ! Window mapping again not raised
+    When a window is shown through a map request for the second time and
+    focused, it is not raised
+
+#57 Make higher scripting capabilities
+    Actions already return true or false, I made this for the future. This is an
+    example of an advanced fensterchef configuration:
+    ```
+    [assignment]
+    1000 toggling ; st-256color ; toggle-tiling
+
+    [startup]
+    run st -n toggling
+
+    [keyboard]
+    z focus-window 1000 && (
+       center-to *
+       resize-to 0 0 800 600
+    ) || minimize-window 1000
+    ```
+    This puts a terminal window in the background whose visibility can be
+    toggled by pressing Z. When showing the window, it is sized to 2/5 of the
+    monitors area.
+    So expressions would need to be added which replaces the action lists.
+
+#58 Add dumping of a frame layout
+    This should dump a layout to a file, maybe it should be a fensterchef
+    configuration file that one can include
+
+#65 ! Fix infinite recursion when a modal dialog is raised
+    When I opened a dialog window that is modal to firefox, put it to tiling
+    and then focused firefox, fensterchef stopped working
+
+#67 ! GVim is not rendering properly
+    If GVim is spawned, it does not render properly, it is just black.
+    Resizing windows however fixes the issue.
+    Solution: Send a fake configure notify event to the window so that it stays
+    in a valid state
+
+#8 Improve font rendering once again
+    Is there any way to make colored emojis work? Is artifical scaling needed?
+    Solution: Use libXft
+
+#51/#8 ! Fix fixed size fonts messing up
+    Fixed size fonts like emoji fonts are not scaled and it looks very weird.
+    Solution: Use libXft
+
+#68 Integrate libX11
+    libX11 should be integrated to replace the poorly implemented xcb libraries,
+    there were not really meant for use it seems like.
+    Completely replace libxcb with libX11, it is not good for a window manager.
+
+#75 Do not check if we are on a different monitor now
+    For re-showing floating windows, show them were there were, even when on
+    another monitor. Only re-show them if they are out of bounds
+
+#66 Always focus window above frames
+    When a frame is focused and there is a window covering the monitor the frame
+    is on, that window should be focused.
+
+#18 ! No window in focus after toggling fullscreen
+    When putting a window out of fullscreen and put into the focus frame, in
+    some circumstances it can happen that no window has focus now.
+    Solution: Use `set_focus_window()` instead of `set_focus_frame()`.
+
+#76 Make advanced notification windows
+    Allow more notification windows to be visible at the same time and
+    allow them to be individually configurable
+
+#72 Refactor configuration parser
+    Make the design easier to understand and clean up the code in
+    parse_expression().
+    Also use two configuration structures:
+    One for the actual configuration, another one for the configuration being
+    parsed.
+    I decided to remove all new scripting stuff, it is not necessary at all.
+    If people want to extend the behavior, they should write C code.
+
+#69 Simplify README
+    Shorten the README to only contain the must important information, move the
+    extended information to the website and Github Wiki
+
+#82 Add default configuration
+    Currently the default configuration is not loaded, add it again
+
+#86 Handle percent and pixel values
+    Add the special needing for the percent and pixel values can that be used in
+    the configuration
+
+#73 Make a CONTRIBUTING file
+    Make a file explaining source code internals and where to start looking to
+    start contributing to the fensterchef project
+
+#87 Resolve modifier actions at the right time
+    The modifier action is resolved at the wrong time.  The parser has to
+    interleave actions being executed with bindings being set.
+
+#88 Make a binding map
+    Not sure why does never came into my head.  But simple make a 256 sized
+    array to store the keybindings and 16 sized array for buttons.
+    Make two, one that is the server state and another that is the local state.
+    On the next cycle, this should be synchronized with the server.
+    Move server synchronization out of event.c into its own file.
+    Maybe merge this with window properties.
+    I decided not to make two lists and simply update all if anything changed.
+
+#85 Add sourcing to parser
+    The source command needs to be added again to load other files
+
+#74 Add caching of window stack
+    Stack changes should be only locally noticed and then sent at once to the X
+    server to allow more tolerance in scripts (expected to improve performance)
+
+#14 Generate documentation
+    Make shell scripts to generate the manual page.
+    This was not implemented but the manual pages were still written but
+    manually.
+
+#90 Simplify window lining
+    When floating windows are spawned, they are placed along a line.  Simplify
+    this and only use the top window.
+
+#91 Add actions to only merge specific default parts
+    For example `merge default bindings` or `merge default font`.
+
+#93 Make unbind action
+    Make an action to unbind a specific binding
+
+#94 ! Fix misplacement of notification window
+    With multiple monitors, the notification window is not clipped correctly
+
+#83 Add binding bindings
+    Allow binding actions to add bindings.  This simply requires the parser to
+    parse bindings within bindings.
+
+#95 Make select action
+    Make an action that selects a window without focusing it for further actions
+
+#99 Add alias to the parser
+    Add the alias keyword to set aliases like:
+    alias a=what
+
+#101 Restructure X11 and merge frame/window files
+    Restructure the X11 management.  Then merge all frame/window files.
+
+#89 Improve focus management
+    Move focus X11 management into x11/synchronize.c (out of event.c) and bundle
+    all relevant parts.
+
+#97 Improve grabbing efficiency
+    We always re-grab all bindings, even if just one binding is added.  Optimize
+    this.
+
+#103 Remove merge actions
+    These are pretty useless
+
+#100 ! Fix wrong order of window numbers
+    When a window number changes, it has to move in the linked list
+
+#105 Isolate window relations
+    Isolate window relations into their own file and make them bindable
+
+#98 ! Fix command program getting stuck
+    When a command window is created, sometimes it gets stuck.  Meaning that it
+    is created and the server gets that event but `select()` is blocking even
+    when there is something to read (map request).  It unblocks as usual when
+    more events are received.
+    Solution: Use XPending() before select().
+
+#108 ! Fix windows being mispositioned
+    Placing along the line is not working, the windows are placed incorrectly
+    Solution: Replace += with =
+
+#109 ! Window stack breaking
+    The stack is not working correctly and crashes occur.
+    Solution: Fix the linked list implementation
+
+#106 Add action to clear relation
+    Like unalias or unbind, have an action to remove a relation again.
+
+#110 Add action to clear a specific relation
+    Make two actions, one `unrelate pattern S` and another `unrelate match
+    S` that both unrelate but one uses a pattern (for strcmp()) whereas the
+    other tries to match the pattern.
+    Maybe make variations ending with `all` that do not stop after the first
+    relation has been removed.
+
+#111 Add group command to the parser
+    Group can be used to make groups of actions.  It also has a unique feature
+    that the parser manages which is `unbind group`.  This unbinds all keys the
+    group defines (in the shallow layer).
+
+#113 ! Fix transient for windows
+    Transient for windows behave weirdly.  Figure out the issue and fix it.
+
+#114 ! Multiple window fullscreens
+    When two fullscreen windows are open on two screens, the currently not
+    focused fullscreen window is not focusable through left/right motions.
+
+#116 ! Inkscape is not sized correctly
+    When opening inkscape the start window size is too small
+
+#119 ! Window number 0 being used when querying existing windows
+    The first queried window gets index 0.  Make it so it gets the configured
+    first number.
+
+#124 ! Make exchange not remove void
+    When exchanging with a void, make the void not disappear
+
+#122 ! Window list is obscured
+    When a new window is raised, it goes above the window list.  Also make the
+    window list centered.
+
+#115 M Merge program_options into main
+    Program options are only related to main and it makes a lot of sense to put
+    it into main.
+
+#125 ! Window list loses focus
+    When opening Steam, the window list loses focus.
+
+#121 Make better hash functions for alias and group
+    The hash function constants need to be improved to be unique for common
+    english words
+
+#118 Add [keycode] syntax to parser
+    [keycode] seems like a logical syntax as it means "key at index" which
+    essentially is the key code.  This should replace the old way.
+
+#127 Allow center window to for tiling windows
+    Tiling windows should then be placed in the center of given monitor
+
+#128 Change parser for relations
+    The relation parser should look for the comma token
+
+#96 New auto fill void
+    When a window is opened and there is an empty frame on the monitor with the
+    current frame, open the window in that empty frame.  Make a configurable
+    option for this.
+
+#129 Add action to focus specific monitor
+    Make an action to focus a specific monitor
+
+#123 Add documentation about terminal emulator
+    Add documentation about configuring a terminal emulator or application
+    launcher.  Add default bindings for pulseaudio control in the configuration
+    file that will be supplied.
+
+#84 Give each window its own individual settings
+    Each window should have its own settings for border and gaps.  Actions have
+    to be made that set these individual settings.  Whether a setting is
+    individual or not has to be stored within the window.
+
+#130 Add empty action
+    Add an action to empty a frame.  This can be used to make bindings more
+    consistent with different auto options
+
+#131 Add default bindings to assign numbers
+    There should be default bindings for mod+1-9.
+
+#112 M Make memory pool for action lists
+    There should be a pool for action lists so the memory is managed more
+    properly.  This should get its own file.
+
+#132 ! Fix focus when closing floating window
+    When a floating window is closed which is above a fullscreen window, then
+    when a tiling window below should not be focused
+
+#133 ! Add protection for recursive calls
+    When a group is called within a group, it would recurse infinitely.  Keep
+    track of the depth and report an error if the depth is to high
+
+#134 Show parsing errors directly
+    Parsing errors are put into the log file.  Make it so the user sees these
+    errors via some sort of popup
+
+#71 Make generic menu item chooser
+    Abstract parts of the window list away to make more choose menus like an
+    application launcher.  Make a single window that can hold many lists which
+    are switchable.  This could be a file viewer, application launcher or the
+    window list.
+
+#138 ! Window opens in fullscreen on the wrong monitor
+    What the hell
+
+#139 Improve floating size configuring
+    Windows with fixed size should be centered and the wanted size should be
+    disregarded.
+
+#140 ! Re-render notifications
+    When a notification is covered, it is not re-rendered.  Change this
+
+#141 ! Window chooser not selecting right window
+    When a menu item is pressed, the incorrect window is focused
+
+#142 ! Menu is focused and shown but covered
+    When the menu is focused and shown but a window covers it, the keyboard is
+    still grabbed but it is not visible.  Raise the window if the visibility is
+    obscured.
+
+#144 ! Message should be within focused window if applicable
+    If a message is shown, it should be centered within the focused window OR
+    within the current monitor?
+
+#145 ! "Current Frame" indicator should not show when focusing fullscreen
+    When a window is focused when switching monitors that is not within a frame,
+    there should be a clear indication
+
+#146 Make fullscreen windows movable like frames
+    It would be very intuitive if fullscreen windows could be moved across
+    monitors.  Add a "exchange window ..." action that does the same as
+    "exchange ..." but also moves fullscreen windows.
+
+#147 Remember the focus origin
+    When focusing a larger frame from a smaller frame, the large frame should
+    remember that the focused came from the smaller frame and when focusing in
+    the opposite direction, this smaller frame should be focused again
+
+#143 React to _NET_ACTIVE_WINDOW change requests
+    The user should be able to configure which specific windows should be auto
+    focused and which not.
+
+#150 Add function to focus _NET_ACTIVE_WINDOW
+    When a request to change the active window but the user configured to deny
+    this, there should be a quick bind to immediately jump to this window later.
+
+#148 Restore layout
+    The layout can be dumped to a file.  Now add a function to restore the
+    layout from such file.
+
+#149 Allow executable to be swapped and restarted
+    When fensterchef is updated, there should be a way to restart it such that
+    all windows stay in tact.
+
+#156 Focus frame when using "focus <direction>"
+    When using any "focus <direction>" function and there was no frame, the
+    frame itself should become focused.
+
+#152 Add round corners
+    Use the shape extension to change the bounds of windows
+
+#157 Add mode check for window conditions
+    Add a check for modes to the window conditions and the parser.
+
+#158 Make relations re-run
+    Make it so relations run again when the window mode changes.

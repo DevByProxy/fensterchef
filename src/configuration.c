@@ -1,445 +1,433 @@
 #include <errno.h>
-#include <stdbool.h>
-#include <stdio.h>
-#include <string.h>
+#include <unistd.h>
 
-#include "configuration_parser.h"
+#include "binding.h"
+#include "configuration.h"
+#include "cursor.h"
 #include "fensterchef.h"
-#include "frame.h"
+#include "font.h"
 #include "log.h"
-#include "monitor.h"
-#include "render.h"
-#include "utility.h"
+#include "notification.h"
+#include "parse/alias.h"
+#include "parse/group.h"
+#include "parse/input.h"
+#include "parse/parse.h"
 #include "window.h"
-#include "window_list.h"
 
-/* the currently loaded configuration */
-struct configuration configuration;
+/* the settings of the default configuration */
+const struct configuration default_configuration = {
+    .overlap = 80,
 
-/* Copy the button bindings of @duplicate into itself. */
-static void duplicate_configuration_button_bindings(
-        struct configuration *duplicate)
+    .auto_split = false,
+    .auto_equalize = true,
+    .auto_fill_void = true,
+    .auto_remove = false,
+    .auto_remove_void = false,
+
+    .notification_duration = 2,
+
+    .text_padding = 6,
+
+    .border_size = 2,
+    .border_color = 0xff49494d,
+    .border_color_active = 0xff939388,
+    .border_color_focus = 0xff7fd0f1,
+    .foreground = 0xff7fd0f1,
+    .foreground_error = 0xffb83940,
+    .background = 0xff49494d,
+
+    .gaps_inner = { 4, 4, 4, 4 },
+    .gaps_outer = { 0, 0, 0, 0 },
+};
+
+/* the currently loaded configuration settings */
+struct configuration configuration = default_configuration;
+
+/* default mouse bindings */
+static const struct default_button_binding {
+    /* the binding flags */
+    bool is_release;
+    bool is_transparent;
+    /* the modifiers of the button */
+    unsigned modifiers;
+    /* the button to press */
+    int button_index;
+    /* the singular action to execute */
+    action_type_t type;
+} default_button_bindings[] = {
+    /* start moving or resizing a window (depends on the mouse position) */
+    { false, false, Mod4Mask, Button1, ACTION_INITIATE_RESIZE },
+    /* minimize (hide) a window */
+    { true, false, Mod4Mask, Button2, ACTION_MINIMIZE_WINDOW },
+    /* start moving a window */
+    { false, false, Mod4Mask, Button3, ACTION_INITIATE_MOVE },
+    /* focus a window */
+    { false, true, 0, Button1, ACTION_FOCUS_WINDOW },
+};
+
+/* default key bindings */
+static const struct default_key_binding {
+    /* the modifiers of the key (will be combined with Mod4Mask) */
+    unsigned modifiers;
+    /* the key symbol */
+    KeySym key_symbol;
+    /* the type of the action */
+    action_type_t action;
+    /* the amount of data points (0 or 1) */
+    unsigned data_count;
+    /* optional additional action data */
+    struct action_data data;
+} default_key_bindings[] = {
+    /* reload the configuration */
+    { ShiftMask, XK_r, .action = ACTION_RELOAD_CONFIGURATION },
+
+    /* move the focus to a child or parent frame */
+    { 0, XK_a, .action = ACTION_FOCUS_PARENT },
+    { 0, XK_b, .action = ACTION_FOCUS_CHILD },
+    { ShiftMask, XK_a, .action = ACTION_FOCUS_ROOT },
+
+    /* make the size of frames equal */
+    { 0, XK_equal, .action = ACTION_EQUALIZE },
+
+    /* close the active window */
+    { 0, XK_q, .action = ACTION_CLOSE_WINDOW },
+
+    /* minimize the active window */
+    { 0, XK_minus, .action = ACTION_MINIMIZE_WINDOW },
+
+    /* go to the next window in the tiling */
+    { 0, XK_n, .action = ACTION_SHOW_NEXT_WINDOW },
+    { 0, XK_p, .action = ACTION_SHOW_PREVIOUS_WINDOW },
+
+    /* remove the current tiling frame */
+    { 0, XK_r, .action = ACTION_REMOVE },
+
+    /* put the stashed frame into the current one */
+    { 0, XK_o, .action = ACTION_POP_STASH },
+
+    /* toggle between tiling and the previous mode */
+    { ShiftMask, XK_space, .action = ACTION_TOGGLE_TILING },
+
+    /* toggle between fullscreen and the previous mode */
+    { 0, XK_f, .action = ACTION_TOGGLE_FULLSCREEN },
+
+    /* focus from tiling to non tiling and vise versa */
+    { 0, XK_space, .action = ACTION_TOGGLE_FOCUS },
+
+    /* split a frame */
+    { 0, XK_v, .action = ACTION_SPLIT_HORIZONTALLY },
+    { 0, XK_s, .action = ACTION_SPLIT_VERTICALLY },
+
+    /* move between frames */
+    { 0, XK_k, .action = ACTION_FOCUS_UP },
+    { 0, XK_h, .action = ACTION_FOCUS_LEFT },
+    { 0, XK_l, .action = ACTION_FOCUS_RIGHT },
+    { 0, XK_j, .action = ACTION_FOCUS_DOWN },
+    { 0, XK_Up, .action = ACTION_FOCUS_UP },
+    { 0, XK_Left, .action = ACTION_FOCUS_LEFT },
+    { 0, XK_Right, .action = ACTION_FOCUS_RIGHT },
+    { 0, XK_Down, .action = ACTION_FOCUS_DOWN },
+
+    /* exchange frames */
+    { ShiftMask, XK_k, .action = ACTION_EXCHANGE_UP },
+    { ShiftMask, XK_h, .action = ACTION_EXCHANGE_LEFT },
+    { ShiftMask, XK_l, .action = ACTION_EXCHANGE_RIGHT },
+    { ShiftMask, XK_j, .action = ACTION_EXCHANGE_DOWN },
+    { ShiftMask, XK_Up, .action = ACTION_EXCHANGE_UP },
+    { ShiftMask, XK_Left, .action = ACTION_EXCHANGE_LEFT },
+    { ShiftMask, XK_Right, .action = ACTION_EXCHANGE_RIGHT },
+    { ShiftMask, XK_Down, .action = ACTION_EXCHANGE_DOWN },
+
+    /* focus the last window that failed to activate */
+    { 0, XK_y, .action = ACTION_FOCUS_AUTO },
+
+    /* show the interactive application chooser */
+    { 0, XK_m, .action = ACTION_SHOW_APPLICATIONS },
+
+    /* show the interactive window chooser */
+    { 0, XK_w, .action = ACTION_SHOW_WINDOWS },
+
+    /* run the terminal or xterm as fall back */
+    { 0, XK_Return, ACTION_RUN, 1,
+        { 0, ACTION_DATA_TYPE_INTEGER, { .string =
+            (utf8_t*) "[ -n \"$TERMINAL\" ] && exec \"$TERMINAL\" || exec xterm"
+        } }
+    },
+
+    /* assign/select specific windows */
+    { 0, XK_0, ACTION_ASSIGN_WINDOW, 1,
+        { 0, ACTION_DATA_TYPE_INTEGER, { .integer = 100 } }
+    },
+    { 0, XK_1, ACTION_ASSIGN_WINDOW, 1,
+        { 0, ACTION_DATA_TYPE_INTEGER, { .integer = 101 } }
+    },
+    { 0, XK_2, ACTION_ASSIGN_WINDOW, 1,
+        { 0, ACTION_DATA_TYPE_INTEGER, { .integer = 102 } }
+    },
+    { 0, XK_3, ACTION_ASSIGN_WINDOW, 1,
+        { 0, ACTION_DATA_TYPE_INTEGER, { .integer = 103 } }
+    },
+    { 0, XK_4, ACTION_ASSIGN_WINDOW, 1,
+        { 0, ACTION_DATA_TYPE_INTEGER, { .integer = 104 } }
+    },
+    { 0, XK_5, ACTION_ASSIGN_WINDOW, 1,
+        { 0, ACTION_DATA_TYPE_INTEGER, { .integer = 105 } }
+    },
+    { 0, XK_6, ACTION_ASSIGN_WINDOW, 1,
+        { 0, ACTION_DATA_TYPE_INTEGER, { .integer = 106 } }
+    },
+    { 0, XK_7, ACTION_ASSIGN_WINDOW, 1,
+        { 0, ACTION_DATA_TYPE_INTEGER, { .integer = 107 } }
+    },
+    { 0, XK_8, ACTION_ASSIGN_WINDOW, 1,
+        { 0, ACTION_DATA_TYPE_INTEGER, { .integer = 108 } }
+    },
+    { 0, XK_9, ACTION_ASSIGN_WINDOW, 1,
+        { 0, ACTION_DATA_TYPE_INTEGER, { .integer = 109 } }
+    },
+
+    { ShiftMask, XK_0, ACTION_FOCUS_WINDOW, 1,
+        { 0, ACTION_DATA_TYPE_INTEGER, { .integer = 100 } }
+    },
+    { ShiftMask, XK_1, ACTION_FOCUS_WINDOW, 1,
+        { 0, ACTION_DATA_TYPE_INTEGER, { .integer = 101 } }
+    },
+    { ShiftMask, XK_2, ACTION_FOCUS_WINDOW, 1,
+        { 0, ACTION_DATA_TYPE_INTEGER, { .integer = 102 } }
+    },
+    { ShiftMask, XK_3, ACTION_FOCUS_WINDOW, 1,
+        { 0, ACTION_DATA_TYPE_INTEGER, { .integer = 103 } }
+    },
+    { ShiftMask, XK_4, ACTION_FOCUS_WINDOW, 1,
+        { 0, ACTION_DATA_TYPE_INTEGER, { .integer = 104 } }
+    },
+    { ShiftMask, XK_5, ACTION_FOCUS_WINDOW, 1,
+        { 0, ACTION_DATA_TYPE_INTEGER, { .integer = 105 } }
+    },
+    { ShiftMask, XK_6, ACTION_FOCUS_WINDOW, 1,
+        { 0, ACTION_DATA_TYPE_INTEGER, { .integer = 106 } }
+    },
+    { ShiftMask, XK_7, ACTION_FOCUS_WINDOW, 1,
+        { 0, ACTION_DATA_TYPE_INTEGER, { .integer = 107 } }
+    },
+    { ShiftMask, XK_8, ACTION_FOCUS_WINDOW, 1,
+        { 0, ACTION_DATA_TYPE_INTEGER, { .integer = 108 } }
+    },
+    { ShiftMask, XK_9, ACTION_FOCUS_WINDOW, 1,
+        { 0, ACTION_DATA_TYPE_INTEGER, { .integer = 109 } }
+    },
+
+    /* update fensterchef */
+    { ControlMask | ShiftMask, XK_u, .action = ACTION_UPDATE },
+
+    /* quit fensterchef */
+    { ControlMask | ShiftMask, XK_e, .action = ACTION_QUIT }
+};
+
+/* Puts the button bindings of the default configuration into the current
+ * configuration.
+ */
+static void set_default_button_bindings(void)
 {
-    /* duplicate mouse button bindings */
-    duplicate->mouse.buttons = xmemdup(duplicate->mouse.buttons,
-            sizeof(*duplicate->mouse.buttons) *
-            duplicate->mouse.number_of_buttons);
-    for (uint32_t i = 0; i < duplicate->mouse.number_of_buttons; i++) {
-        struct configuration_button *const button =
-            &duplicate->mouse.buttons[i];
-        button->actions = duplicate_actions(button->actions,
-                button->number_of_actions);
+    struct button_binding binding;
+
+    LOG_DEBUG("setting default button bindings\n");
+
+    /* overwrite bindings with the default button bindings */
+    for (unsigned i = 0; i < SIZE(default_button_bindings); i++) {
+        /* bake a button binding from the default button bindings struct */
+        binding.is_release = default_button_bindings[i].is_release;
+        binding.is_transparent = default_button_bindings[i].is_transparent;
+        binding.modifiers = default_button_bindings[i].modifiers;
+        binding.button = default_button_bindings[i].button_index;
+        binding.actions = create_empty_action_block(1, 0);
+        binding.actions->items[0].type = default_button_bindings[i].type;
+        set_button_binding(&binding);
+        dereference_action_block(binding.actions);
     }
 }
 
-/* Copy the key bindings of @duplicate into itself. */
-static void duplicate_configuration_key_bindings(
-        struct configuration *duplicate)
+/* Puts the key bindings of the default configuration into the current
+ * configuration.
+ */
+static void set_default_key_bindings(void)
 {
-    /* duplicate key bindings */
-    duplicate->keyboard.keys = xmemdup(duplicate->keyboard.keys,
-            sizeof(*duplicate->keyboard.keys) *
-            duplicate->keyboard.number_of_keys);
-    for (uint32_t i = 0; i < duplicate->keyboard.number_of_keys; i++) {
-        struct configuration_key *const key = &duplicate->keyboard.keys[i];
-        key->actions = duplicate_actions(key->actions, key->number_of_actions);
-    }
-}
+    struct key_binding binding;
 
-/* Create a deep copy of @duplicate and put it into itself. */
-void duplicate_configuration(struct configuration *duplicate)
-{
-    if (duplicate->font.name != NULL) {
-        duplicate->font.name = (uint8_t*) xstrdup((char*) duplicate->font.name);
-    }
-    duplicate->startup.actions = duplicate_actions(duplicate->startup.actions,
-            duplicate->startup.number_of_actions);
-    duplicate_configuration_button_bindings(duplicate);
-    duplicate_configuration_key_bindings(duplicate);
-}
+    LOG_DEBUG("setting default key bindings\n");
 
-/* Clear the resources given configuration occupies. */
-void clear_configuration(struct configuration *configuration)
-{
-    free(configuration->font.name);
-
-    free_actions(configuration->startup.actions,
-            configuration->startup.number_of_actions);
-
-    /* free button bindings */
-    for (uint32_t i = 0; i < configuration->mouse.number_of_buttons; i++) {
-        free_actions(configuration->mouse.buttons[i].actions,
-                configuration->mouse.buttons[i].number_of_actions);
-    }
-    free(configuration->mouse.buttons);
-
-    /* free key bindings */
-    for (uint32_t i = 0; i < configuration->keyboard.number_of_keys; i++) {
-        free_actions(configuration->keyboard.keys[i].actions,
-                configuration->keyboard.keys[i].number_of_actions);
-    }
-    free(configuration->keyboard.keys);
-}
-
-/* Load the user configuration and merge it into the current configuration. */
-void reload_user_configuration(void)
-{
-    char *path;
-    struct configuration configuration;
-
-    if (fensterchef_configuration[0] == '~' &&
-            fensterchef_configuration[1] == '/') {
-        const char *const home = getenv("HOME");
-        if (home == NULL) {
-            LOG_ERROR("could not get home directory ($HOME is unset)\n");
-            return;
+    /* overwrite bindings with the default button bindings */
+    for (unsigned i = 0; i < SIZE(default_key_bindings); i++) {
+        /* bake a key binding from the bindings array */
+        binding.modifiers = Mod4Mask | default_key_bindings[i].modifiers;
+        binding.key_symbol = default_key_bindings[i].key_symbol;
+        binding.actions = create_empty_action_block(1,
+                default_key_bindings[i].data_count);
+        binding.actions->items[0].type = default_key_bindings[i].action;
+        binding.actions->items[0].data_count = default_key_bindings[i].data_count;
+        if (default_key_bindings[i].data_count == 1) {
+            binding.actions->data[0] = default_key_bindings[i].data;
+            duplicate_action_data(&binding.actions->data[0]);
         }
-        path = xasprintf("%s/%s", home, &fensterchef_configuration[2]);
+        set_key_binding(&binding);
+        dereference_action_block(binding.actions);
+    }
+}
+
+/* Set the current configuration to the default configuration. */
+void set_default_configuration(void)
+{
+    clear_configuration();
+
+    configuration = default_configuration;
+
+    set_ignored_modifiers(DEFAULT_IGNORE_MODIFIERS);
+    set_default_button_bindings();
+    set_default_key_bindings();
+}
+
+/* Expand given @path.
+ *
+ * @path becomes invalid after this call, use the return value for the new
+ *       value.
+ */
+static char *expand_path(char *path)
+{
+    char *expanded;
+
+    if (path[0] == '~' && path[1] == '/') {
+        expanded = xasprintf("%s%s",
+                Fensterchef_home, &path[1]);
+        free(path);
     } else {
-        path = xstrdup(fensterchef_configuration);
+        expanded = path;
+    }
+    return expanded;
+}
+
+/* Expand the path and check if it is readable. */
+static bool is_readable(char *path)
+{
+    if (access(path, R_OK) != 0) {
+        if (errno != ENOENT) {
+            LOG_ERROR("could not open %s: %s\n",
+                    path, strerror(errno));
+        }
+        return false;
+    }
+    return true;
+}
+
+/* Get the configuration file for fensterchef. */
+const char *get_configuration_file(void)
+{
+    static char *cached_path;
+
+    const char *xdg_config_home, *xdg_config_dirs;
+    char *path;
+    const char *colon, *next;
+    size_t length;
+
+    if (Fensterchef_configuration != NULL) {
+        return Fensterchef_configuration;
     }
 
-    if (load_configuration_file(path, &configuration) == OK) {
-        set_configuration(&configuration);
+    xdg_config_home = getenv("XDG_CONFIG_HOME");
+    if (xdg_config_home == NULL) {
+        xdg_config_home = "~/.config";
     }
 
+    path = xasprintf("%s/" FENSTERCHEF_CONFIGURATION,
+            xdg_config_home);
+    path = expand_path(path);
+    LOG_DEBUG("trying configuration path: %s\n",
+            path);
+    if (is_readable(path)) {
+        free(cached_path);
+        cached_path = path;
+        return path;
+    }
     free(path);
-}
 
-/* Get a key from button modifiers and a button index. */
-struct configuration_button *find_configured_button(
-        struct configuration *configuration,
-        uint16_t modifiers, xcb_button_t button_index, uint16_t flags)
-{
-    struct configuration_button *button;
-
-    /* remove the ignored modifiers but also ~0xff which is all the mouse button
-     * masks
-     */
-    modifiers &= ~(configuration->mouse.ignore_modifiers | ~0xff);
-    flags &= ~BINDING_FLAG_TRANSPARENT;
-
-    /* find a matching button (the button AND modifiers must match up) */
-    for (uint32_t i = 0; i < configuration->mouse.number_of_buttons; i++) {
-        button = &configuration->mouse.buttons[i];
-        if (button->index == button_index &&
-                button->modifiers == modifiers &&
-                (button->flags & ~BINDING_FLAG_TRANSPARENT) == flags) {
-            return button;
-        }
-    }
-    return NULL;
-}
-
-/* Grab the mousebindings so we receive MousePress/MouseRelease events for
- * them.
- */
-void grab_configured_buttons(void)
-{
-    xcb_window_t root;
-    struct configuration_button *button;
-
-    root = screen->root;
-
-    /* remove all previously grabbed buttons so that we can overwrite them */
-    xcb_ungrab_button(connection, XCB_GRAB_ANY, root, XCB_MOD_MASK_ANY);
-
-    for (uint32_t i = 0; i < configuration.mouse.number_of_buttons; i++) {
-        button = &configuration.mouse.buttons[i];
-        /* use every possible combination of modifiers we do not care about
-         * so that when the user has CAPS LOCK for example, it does not mess
-         * with mousebindings
-         */
-        for (uint32_t j = 0; j < (uint32_t) (1 << 8); j++) {
-            /* check if @j has any outside modifiers */
-            if ((j | configuration.mouse.ignore_modifiers) !=
-                    configuration.mouse.ignore_modifiers) {
-                continue;
-            }
-
-            xcb_grab_button(connection,
-                    1, /* 1 means we specify a window for grabbing */
-                    root, /* this is the window we grab the button for */
-                    (button->flags & BINDING_FLAG_RELEASE) ?
-                    XCB_EVENT_MASK_BUTTON_RELEASE : XCB_EVENT_MASK_BUTTON_PRESS,
-                    /* SYNC means that pointer (mouse) events will be frozen
-                     * until we issue a AllowEvents request
-                     */
-                    XCB_GRAB_MODE_SYNC,
-                    /* do not freeze keyboard events */
-                    XCB_GRAB_MODE_ASYNC,
-                    XCB_NONE, /* no confinement of the pointer */
-                    XCB_NONE, /* no change of cursor */
-                    button->index, (j | button->modifiers));
-        }
-    }
-}
-
-/* Get a key from key modifiers and a key symbol. */
-struct configuration_key *find_configured_key(
-        struct configuration *configuration,
-        uint16_t modifiers, xcb_keysym_t key_symbol, uint16_t flags)
-{
-    struct configuration_key *key;
-
-    modifiers &= ~configuration->keyboard.ignore_modifiers;
-    flags &= ~BINDING_FLAG_TRANSPARENT;
-
-    /* find a matching key (the keysym AND modifiers must match up) */
-    for (uint32_t i = 0; i < configuration->keyboard.number_of_keys; i++) {
-        key = &configuration->keyboard.keys[i];
-        if (key->key_symbol == key_symbol && key->modifiers == modifiers &&
-                (key->flags & ~BINDING_FLAG_TRANSPARENT) == flags) {
-            return key;
-        }
-    }
-    return NULL;
-}
-
-/* Grab the keybindings so we receive the KeyPress/KeyRelease events for them.
- */
-void grab_configured_keys(void)
-{
-    xcb_window_t root;
-    xcb_keycode_t *keycodes;
-    uint16_t modifiers;
-
-    root = screen->root;
-
-    /* remove all previously grabbed keys so that we can overwrite them */
-    xcb_ungrab_key(connection, XCB_GRAB_ANY, root, XCB_MOD_MASK_ANY);
-
-    for (uint32_t i = 0; i < configuration.keyboard.number_of_keys; i++) {
-        /* go over all keycodes of a specific key symbol and grab them with
-         * needed modifiers
-         */
-        keycodes = get_keycodes(configuration.keyboard.keys[i].key_symbol);
-        if (keycodes == NULL) {
-            continue;
-        }
-        for (uint32_t j = 0; keycodes[j] != XCB_NO_SYMBOL; j++) {
-            /* use every possible combination of modifiers we do not care about
-             * so that when the user has CAPS LOCK for example, it does not mess
-             * with keybindings.
-             */
-            for (uint32_t k = 0; k < (uint32_t) (1 << 8); k++) {
-                /* check if @k has any outside modifiers */
-                if ((k | configuration.keyboard.ignore_modifiers) !=
-                        configuration.keyboard.ignore_modifiers) {
-                    continue;
-                }
-
-                modifiers = (k | configuration.keyboard.keys[i].modifiers);
-
-                xcb_grab_key(connection,
-                        1, /* 1 means we specify a window for grabbing */
-                        root, /* this is the window we grab the key for */
-                        modifiers, keycodes[j],
-                        /* do not freeze pointer (mouse) events */
-                        XCB_GRAB_MODE_ASYNC,
-                        /* SYNC means that keyboard events will be frozen until
-                         * we issue a AllowEvents request
-                         */
-                        XCB_GRAB_MODE_SYNC);
-            }
-        }
-        free(keycodes);
-    }
-}
-
-/* Compare the current configuration with the new configuration and set it. */
-void set_configuration(struct configuration *new_configuration)
-{
-    struct configuration old_configuration;
-    xcb_render_color_t color;
-
-    old_configuration = configuration;
-    configuration = *new_configuration;
-
-    /* reload the font */
-    if (configuration.font.name != NULL) {
-        set_font(configuration.font.name);
+    xdg_config_dirs = getenv("XDG_CONFIG_DIRS");
+    if (xdg_config_dirs == NULL) {
+        xdg_config_dirs = "/usr/local/share:/usr/share";
     }
 
-    /* refresh the border size and color of all windows */
-    for (Window *window = first_window; window != NULL; window = window->next) {
-        if (window == focus_window) {
-            window->border_color = configuration.border.focus_color;
+    next = xdg_config_dirs;
+    do {
+        colon = strchr(next, ':');
+        if (colon != NULL) {
+            length = colon - next;
+            colon++;
         } else {
-            window->border_color = configuration.border.color;
-        }
-        window->border_size = configuration.border.size;
-    }
-
-    /* reload all frames */
-    for (Monitor *monitor = first_monitor; monitor != NULL;
-            monitor = monitor->next) {
-        resize_frame(monitor->frame, monitor->frame->x, monitor->frame->y,
-                monitor->frame->width, monitor->frame->height);
-    }
-
-    /* change border color and size of the notification window */
-    change_client_attributes(&notification,
-            configuration.notification.border_color);
-    configure_client(&notification, notification.x, notification.y,
-            notification.width, notification.height,
-            configuration.notification.border_size);
-
-    /* change border color and size of the window list window */
-    change_client_attributes(&window_list.client,
-            configuration.notification.border_color);
-    configure_client(&window_list.client, window_list.client.x,
-            window_list.client.y, window_list.client.width,
-            window_list.client.height, configuration.notification.border_size);
-
-    /* check if notification background changed */
-    if (old_configuration.notification.background !=
-            configuration.notification.background) {
-        convert_color_to_xcb_color(&color,
-                configuration.notification.background);
-        set_pen_color(stock_objects[STOCK_WHITE_PEN], color);
-    }
-    /* check if notification foreground changed */
-    if (old_configuration.notification.foreground !=
-            configuration.notification.foreground) {
-        convert_color_to_xcb_color(&color,
-                configuration.notification.foreground);
-        set_pen_color(stock_objects[STOCK_BLACK_PEN], color);
-    }
-    /* check if notification foreground or background changed */
-    if (old_configuration.notification.foreground !=
-            configuration.notification.foreground ||
-            old_configuration.notification.background !=
-                configuration.notification.background) {
-        general_values[0] = configuration.notification.background;
-        general_values[1] = configuration.notification.foreground;
-        xcb_change_gc(connection, stock_objects[STOCK_GC],
-                XCB_GC_FOREGROUND | XCB_GC_BACKGROUND, general_values);
-
-        general_values[0] = configuration.notification.foreground;
-        general_values[1] = configuration.notification.background;
-        xcb_change_gc(connection, stock_objects[STOCK_INVERTED_GC],
-                XCB_GC_FOREGROUND | XCB_GC_BACKGROUND, general_values);
-    }
-
-    /* re-grab all bindings */
-    grab_configured_buttons();
-    grab_configured_keys();
-
-    /* free the resources of the old configuration */
-    clear_configuration(&old_configuration);
-}
-
-/* Load the configuration within given file. */
-int load_configuration_file(const char *file_name,
-        struct configuration *destination_configuration)
-{
-    Parser parser;
-    parser_error_t error;
-
-    memset(&parser, 0, sizeof(parser));
-
-    parser.file = fopen(file_name, "r");
-    if (parser.file == NULL) {
-        LOG_ERROR("could not open configuration file %s: %s\n",
-                file_name, strerror(errno));
-        return ERROR;
-    }
-
-    parser.line_capacity = 128;
-    parser.line = xmalloc(parser.line_capacity);
-
-    parser.configuration = destination_configuration;
-    *parser.configuration = configuration;
-    /* disregard all previous startup actions */
-    parser.configuration->startup.actions = NULL;
-    parser.configuration->startup.number_of_actions = 0;
-    /* disregard all previous bindings */
-    parser.configuration->mouse.buttons = NULL;
-    parser.configuration->mouse.number_of_buttons = 0;
-    parser.configuration->keyboard.keys = NULL;
-    parser.configuration->keyboard.number_of_keys = 0;
-    duplicate_configuration(parser.configuration);
-
-    /* parse file line by line */
-    while (read_next_line(&parser)) {
-        error = parse_line(&parser);
-        /* emit an error if a good line has any trailing characters */
-        if (error == PARSER_SUCCESS && parser.line[parser.column] != '\0') {
-            error = PARSER_ERROR_TRAILING;
+            length = strlen(next);
         }
 
-        if (error != PARSER_SUCCESS) {
-            LOG("%s:%zu: %s\n", file_name, parser.line_number,
-                    parser_string_error(error));
-            fprintf(stderr, "%5zu %s\n", parser.line_number, parser.line);
-            for (int i = 0; i <= 5; i++) {
-                fprintf(stderr, " ");
-            }
-            if (error == PARSER_ERROR_TRAILING) {
-                /* indicate all trailing characters using "  ^~~~" */
-                for (size_t i = 0; i < parser.column; i++) {
-                    fprintf(stderr, " ");
-                }
-                fprintf(stderr, "^");
-                for (size_t i = parser.column + 1;
-                        parser.line[i] != '\0'; i++) {
-                    fprintf(stderr, "~");
-                }
-                fprintf(stderr, "\n");
-            } else {
-                /* indicate the error region using "  ~~~^" */
-                for (size_t i = 0; i < parser.item_start_column; i++) {
-                    fprintf(stderr, " ");
-                }
-                for (size_t i = parser.item_start_column + 1;
-                        i < parser.column; i++) {
-                    fprintf(stderr, "~");
-                }
-                fprintf(stderr, "^\n");
-            }
-        }
-
-        if (error != PARSER_SUCCESS) {
+        path = xasprintf("%.*s/" FENSTERCHEF_CONFIGURATION,
+                length, next);
+        path = expand_path(path);
+        LOG_DEBUG("trying configuration path: %s\n",
+                path);
+        if (is_readable(path)) {
+            free(cached_path);
+            cached_path = path;
             break;
         }
+        free(path);
+        path = NULL;
+
+        next = colon;
+    } while (next != NULL);
+
+    return path;
+}
+
+/* Clear everything that is currently loaded in the configuration. */
+void clear_configuration(void)
+{
+    clear_cursor_cache();
+    unset_button_bindings();
+    unset_key_bindings();
+    unset_window_relations();
+
+    set_font(DEFAULT_FONT);
+}
+
+/* Reload the fensterchef configuration. */
+void reload_configuration(void)
+{
+    Parser *parser = NULL;
+
+    const char *const configuration = get_configuration_file();
+
+    clear_all_aliases();
+    clear_all_groups();
+
+    clear_configuration();
+
+    if (error_notification != NULL) {
+        unmap_client(&error_notification->reference);
     }
 
-    free(parser.line);
-    fclose(parser.file);
+    if (configuration == NULL ||
+            (parser = create_file_parser(configuration),
+                parser == NULL)) {
+        if (configuration != NULL) {
+            LOG("could not open %s: %s\n",
+                    configuration, strerror(errno));
+        }
+        set_default_configuration();
+    } else if (parse_and_run_actions(parser) != OK) {
+        char buffer[1024];
 
-    if (error != PARSER_SUCCESS) {
-        clear_configuration(parser.configuration);
-        LOG("got an error reading configuration file: %s\n", file_name);
-        return ERROR;
+        (void) snprintf(buffer, sizeof(buffer),
+                "Configuration parse error at %s:%u",
+                parser->first_error_file,
+                parser->first_error_line + 1);
+        set_error_notification(buffer);
+
+        set_default_configuration();
     }
-
-    /* set the existing startup actions if no startup section is specified */
-    if (!parser.has_label[PARSER_LABEL_STARTUP]) {
-        parser.configuration->startup.actions =
-            duplicate_actions(configuration.startup.actions,
-                configuration.startup.number_of_actions);
-        parser.configuration->startup.number_of_actions =
-            configuration.startup.number_of_actions;
-    }
-
-    /* set the existing button bindings if no mouse section is specified */
-    if (!parser.has_label[PARSER_LABEL_MOUSE]) {
-        parser.configuration->mouse.buttons = configuration.mouse.buttons;
-        parser.configuration->mouse.number_of_buttons =
-            configuration.mouse.number_of_buttons;
-        duplicate_configuration_button_bindings(parser.configuration);
-    }
-
-    /* set the existing key bindings if no keyboard section is specified */
-    if (!parser.has_label[PARSER_LABEL_KEYBOARD]) {
-        parser.configuration->keyboard.keys = configuration.keyboard.keys;
-        parser.configuration->keyboard.number_of_keys =
-            configuration.keyboard.number_of_keys;
-        duplicate_configuration_key_bindings(parser.configuration);
-    }
-
-    LOG("successfully read configuration file: %s\n", file_name);
-
-    return OK;
+    destroy_parser(parser);
 }
