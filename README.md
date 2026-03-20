@@ -28,5 +28,5 @@ man fensterchef
 
 ## Information
 
-Fensterchef was a personal project developed by [TheProgrammingSauce](https://github.com/thepsauce) and DevByProxy. It is no longer actively maintained.
+Fensterchef was a personal project developed by [TheProgrammingSauce](https://github.com/thepsauce) and [DevByProxy](https://github.com/DevByProxy). It is no longer actively maintained.
 
