@@ -1,0 +1,706 @@
+.TH FENSTERCHEF 5 "2025-05-17" "Fensterchef" "Fensterchef manual"
+.SH NAME
+fensterchef - format of fensterchef configuration files
+.
+.SH DESCRIPTION
+The fensterchef configuration file format is used for the fensterchef window
+manager.
+
+Settings can be set through simple
+.B key value
+syntax.
+For example:
+.B border color
+.BR #440088 .
+When a line starts with a
+.I #
+the line is ignored.
+Lines can be joined using a backslash (\\).
+This character must be the first non space character on a line which makes this
+line continue the previous line.
+.
+.SH SETTING
+.PP
+.B auto equalize
+.IR true | false
+.IP
+ Make frames equalize their size when splitting/unsplitting.
+.PP
+.B auto fill void
+.IR true | false
+.IP
+ Fill empty frames with stashed frames automatically.
+.PP
+.B auto find void
+.IR true | false
+.IP
+Find empty frames to fill on the current monitor.
+.PP
+.B auto remove
+.IR true | false
+.IP
+Remove any frames automatically even if gaps can be filled.
+.PP
+.B auto remove void
+.IR true | false
+.IP
+Remove empty frames automatically.
+.PP
+.B auto split
+.IR true | false
+.IP
+When a window is shown, split the current frame to make room to show it.
+.PP
+.B background
+.I color
+.IP
+Set the background color of fensterchef windows.
+.PP
+.B border color active
+.RB [ current ]
+.I color
+.IP
+Set the border color of active windows.
+.PP
+.B border color focus
+.RB [ current ]
+.I color
+.IP
+Set the border color of focused windows.
+.PP
+.B border color
+.RB [ current ]
+.I color
+.IP
+Set the border color of inactive and not focused windows.
+.PP
+.B border size
+.RB [ current ]
+.I number
+.IP
+Set the size of the border of all windows.
+.PP
+.B border radius
+.RB [ inner ]
+.RB [ current ]
+.I number
+.IP
+Set the outer or inner radius of the border of all windows.
+.PP
+.B cursor horizontal
+.I cursor_name
+.IP
+Set the cursor shown when resizing horizontally.
+.PP
+.B cursor moving
+.I cursor_name
+.IP
+Set the cursor shown when moving a window.
+.PP
+.B cursor root
+.I cursor_name
+.IP
+Set the cursor shown on the root window.
+.PP
+.B cursor sizing
+.I cursor_name
+.IP
+Set the cursor shown when sizing a corner of a window.
+.PP
+.B cursor vertical
+.I cursor_name
+.IP
+Set the cursor shown when resizing vertically.
+.PP
+.B font
+.I name
+.IP
+Set the font used for fensterchef windows.
+.PP
+.B foreground
+.I color
+.IP
+Set the text color of fensterchef windows.
+.PP
+.B foreground error
+.I color
+.IP
+Set the text/border color of fensterchef error notifications.
+.PP
+.B gaps inner
+.IR 1 ,
+.I 2
+or
+.I 4
+.IR number s
+.IP
+Set the gaps between frames and their inner windows.
+.PP
+.B gaps outer
+.IR 1 ,
+.I 2
+or
+.I 4
+.IR number s
+.IP
+Set the gaps between frames and the monitor edges.
+.PP
+.B modifiers ignore
+.I modifiers
+.IP
+Set the modifiers to ignore for all bindings.
+For example when setting this to "Shift", then pressing "Shift" will not
+mess with any bindings.
+.PP
+.B notification duration
+.I number
+.IP
+Set the duration the notification should be visible for.
+.PP
+.B overlap
+.I number
+.IP
+Set the percentage a window should be counted overlapping a monitor.
+Set this to 100% to only allow this for fullscreen windows.
+Set it to 101% to disable this feature.
+.PP
+.B text padding
+.I number
+.IP
+The insets of the text in fensterchef windows.
+.
+.SH ACTION
+Actions can be run directly in the configuration file or on a button/key
+binding.
+Note that the "focused window" can also refer to the pressed window in a button
+binding or the window matched in a relation.
+.PP
+.B assign
+.I number
+.IP
+Assign a number to the currently focused frame.
+.PP
+.B assign window
+.I number
+.IP
+Assign a number to the currently focused window.
+.PP
+.B center window
+.IP
+Center the focused window onto the monitor it is on.
+.PP
+.B center window to
+.I pattern
+.IP
+Center the focused window to the monitor matching the pattern.
+If no monitor matches, nothing happens.
+.PP
+.B close window
+.RI [number]
+.IP
+Close the focused window or the window with given number.
+.PP
+.BR dump | restore
+.B layout
+.I file_name
+.IP
+Dump all frames and windows to a file or restore them from a previous dump.
+Note that this does not include reopening of closed windows, it only restores
+the positions and sizes of all windows and frames.
+.PP
+.B empty
+.IP
+Make the current frame completely empty, removing all children and hiding
+all windows.
+.PP
+.B equalize
+.IP
+Equalize the size of all children within the current frame.
+.PP
+.B exchange
+.BR down | left | right | up
+.IP
+Exchange the current frame with the frame towards given direction.
+.PP
+.B exchange window
+.BR down | left | right | up
+.IP
+If a floating window is focused, it will be moved across monitors.
+Otherwise this behaves like
+.BR exchange .
+.PP
+.B focus child
+.RI [ number ]
+.IP
+Focus the child frame or the ith child frame.
+.PP
+.B focus
+.I number
+.IP
+Focus the frame with given number.
+.PP
+.B focus auto
+.IP
+Focus the last window that tried to activate itself through
+.B _NET_ACTIVE_WINDOW
+but failed.
+.PP
+.B focus auto
+.IR true | false
+Allow or disallow a window to focus and show itself through
+.BR _NET_ACTIVE_WINDOW .
+.PP
+.B focus leaf
+.IP
+Focus the deepest child of the current frame.
+Same as
+.B focus child
+.BR -1 .
+.PP
+.B focus
+.BR down | left | right | up
+.IP
+Focus the frame towards given direction.
+.PP
+.B focus monitor
+.I name
+.IP
+Focus the monitor matching given name pattern.
+.PP
+.B focus parent
+.RI [ number ]
+.IP
+Focus the nth parent frame.
+.PP
+.B focus root
+.RI [ pattern ]
+.IP
+Focus the most upper parent frame.
+Same as
+.B focus parent
+.BR -1 .
+.PP
+.B focus window
+.RI [ number ]
+.IP
+Focus the window with given number.
+.PP
+.B hint split
+.BR horizontally | vertically
+.IP
+Hint that the current frame should split in given direction.
+The auto tiling uses this.
+.PP
+.B indicate
+.IP
+Show the current frame indicator.
+.PP
+.B initiate move
+.IP
+Initiate a moving of a window with the mouse.
+.PP
+.B initiate resize
+.IP
+Initiate a resizing of a window with the mouse.
+.PP
+.B merge default
+.IP
+Merge the default configuration with the current configuration.
+.PP
+.B merge default bindings
+.IP
+Merge the default bindings into the current configuration.
+.PP
+.B merge default button bindings
+.IP
+Merge the default button bindings into the current configuration.
+.PP
+.B merge default cursor
+.IP
+Merge the default cursors into the current configuration.
+.PP
+.B merge default font
+.IP
+Merge the default font into current configuration.
+.PP
+.B merge default key bindings
+.IP
+Merge the default key bindings into current configuration.
+.PP
+.B minimize window
+.RI [ number ]
+.IP
+Minimize the focus window or the window with given number.
+.PP
+.B move
+.BR down | left | right | up
+.IP
+Move the current frame in given direction.
+.PP
+.B move window
+.BR down | left | right | up
+.IP
+This has the same effect as
+.B exchange window
+except that it falls back to
+.BR move .
+.PP
+.B move window
+.BR by | to
+.I x y
+.IP
+Move the focused window by or to given coordinates.
+.PP
+.B nop
+.IP
+Does nothing.
+Use this to grab keys/buttons or create relations that do nothing.
+.PP
+.B pop stash
+.IP
+Pop the last stashed frame into the current frame.
+.PP
+.B quit
+.IP
+Quit fensterchef.
+.PP
+.B reload configuration
+.IP
+Clear the configuration and load all again from the configuration file.
+.PP
+.B remove
+.RI [ number ]
+.IP
+Remove the curent frame or the frame with given number.
+.PP
+.B resize window
+.BR by | to
+.I x y
+.IP
+Resize the focused window by or to given coordinates.
+.PP
+.B run
+.I shell_program
+.IP
+Run a shell program.
+The shell used is located at `/bin/sh/`.
+.PP
+.B select focus
+.IP
+Select the focused window for further actions.
+.PP
+.B select pressed
+.IP
+Select the pressed window for further actions.
+This works only if it is used in a button binding.
+.PP
+.B select window
+.I number
+.IP
+Select the window with given number for further actions.
+.PP
+.B set floating
+.IP
+Set the focused window to floating.
+.PP
+.B set fullscreen
+.IP
+Set the focused window to fullscreen.
+.PP
+.B set tiling
+.IP
+Set the focused window to tiling.
+.PP
+.B show applications
+.IP
+Show/hide the application runner.
+.PP
+.B show message
+.I string
+.IP
+Show a notification window with given message.
+.PP
+.B show
+.BR next | previous
+.B window
+.RI [ number ]
+.IP
+Show the next/previous window or the ith next/previous window.
+.PP
+.B show run
+.I shell_program
+.IP
+Run a shell program and show its output as notification.
+.PP
+.B show window
+.RI [ number ]
+.IP
+Show the focused window or the window with given number.
+.PP
+.B show windows
+.IP
+Show/hide the interactive window chooser.
+.PP
+.B split
+.BR horizontally | vertically
+.IP
+Split the current frame horizontally or vertically.
+.PP
+.B split left
+.BR horizontally | vertically
+.IP
+Split the current frame horizontally or vertically but swap the positions of the
+split frames.
+.PP
+.B toggle focus
+.IP
+Toggle the focus from the tiling layer to the floating layer.
+.PP
+.B toggle fullscreen
+.IP
+Toggle the mode of a window from
+.I X
+to fullscreen and vise versa.
+.PP
+.B toggle tiling
+.IP
+Toggle the mode of a window from
+.I X
+to tiling and vise versa.
+.
+.SH BINDING
+.RB [ release ]
+.RB [ transparent ]
+.IR modifiers + button | key_symbol
+.I commands
+.PP
+This creates a binding that triggers when the specified combination of
+modifiers and button/key symbol is pressed/released.
+
+To get more information about the modifiers configured on your system, use
+.B xmodmap
+.BR -pm .
+This shows the name of the modifier and then the physical keys that trigger
+these modifiers.
+Note that
+.B fensterchef
+expects the modifiers to start with a capital letter.
+
+.I transparent
+can be used for button bindings to also send the button event to the pressed
+window.
+
+.I release
+can be used to trigger the bind when releasing the key/button.
+
+Note that the ignored modifiers can be used to control which additional
+physically pressed modifiers should not change the interpretation of a binding.
+
+Actions are separated by a comma, for example:
+.IP
+.EX
+# Also trigger all bindings if Lock, Mod2 or Control is down
+modifiers ignore Lock Mod2 Control
+# Show a message when Mod1 (usually Alt) and "t" is pressed
+Mod1+t show message Hello!
+
+# Split a frame and focus the right frame
+Shift+t split horizontally, focus right
+
+# Focus a window when pressed with the left mouse button
+transparent LeftButton focus window
+.EE
+
+You can also bind by key code which requires a special syntax:
+.EX
+# Bind to 24 (usually Q)
+Mod1+[24] close window
+.EE
+.PP
+.B unbind
+.RB [ release ]
+.IR modifiers + button | key_symbol
+.IP
+The unbind command can be used to remove a previously bound key or button.
+.
+.SH WNDOW PATTERN
+Window patterns are used to match against specific window properties.
+The syntax is
+.B mode
+.BR tiling | floating | fullscreen | dock | desktop
+or
+.B name
+.I string
+or
+.B instance
+.I string
+or
+.B class
+.I string
+or any combination of those using a comma.
+
+The legacy syntax is
+.IR string [, string ]
+where the last string is always the window class.
+If two strings are given, the first one is the window instance.
+
+To figure out the values to use in the window pattern try to use
+.BR xprop ( 1 )
+and click on a window and read off the
+.B WM_NAME
+or
+.B WM_CLASS
+property.
+.
+.SH RELATION
+.B relate
+.I relation_name
+.RB [ once ]
+.I window_pattern commands
+
+All relations have a name so that they can be explicitly changed or removed
+later by another
+.B relate
+or
+.BR unrelate .
+An optional
+.B once
+can be provided in which case this relation only runs after a window creation
+and never again for the same window.
+After the window pattern comes the commands that should run when a window with
+this instance name and class name is created.
+Actions are separated by a comma, for example:
+.IP
+.EX
+# Set all firefox windows to floating and focus them when they appear
+relate firefox once class firefox set floating, focus window
+.EE
+.PP
+.B unrelate
+.IP
+Remove the relation that is currently running (use within a relation).
+.PP
+.B unrelate
+.I relation_name_pattern
+.IP
+Remove all relations whose name match the given pattern.
+.
+.SH ALIAS
+.PP
+.B alias
+.I alias_name
+=
+.I string
+.IP
+Create an alias.
+Whenever a word (unquoted string) is used, it is attempted
+to resolve it to an alias.
+The exception is in alias un-/definitions.
+.PP
+.B unalias
+.I alias_name
+.IP
+Remove a previously declared alias
+.
+.SH GROUP
+.PP
+.B group
+.I group_name
+.I commands
+.IP
+The group command creates a group of commands.
+Use
+.B call
+to run the commands within a group.
+.PP
+.B call
+.I group_name
+.IP
+Run all commands within the specified group.
+.PP
+.B ungroup
+.I group_name
+.IP
+The ungroup command removes all bindings and relations a specific group
+created.
+.
+.SH SOURCE
+.B source
+.I file
+.IP
+The source command can source external files.
+This allows to split a configuration into multiple parts.
+.
+.SH EXAMPLE
+.SS Initial layout
+.EX
+relate 1, xterm-256color assign window 901, focus window
+relate 2, xterm-256color assign window 902, focus window
+relate 3, xterm-256color assign window 903, focus window
+
+assign 901
+
+split horizontally
+focus right
+assign 902
+
+split horizontally
+focus right
+assign 903
+
+# Use st -n X, this sets the instance name to X
+# (a feature of suckless terminal)
+run 'st -n 1'
+run 'st -n 2'
+run 'st -n 3'
+.EE
+.SS ratpoison-like tiling
+.EX
+auto split false
+auto fill void true
+auto find void false
+auto remove false
+auto remove void false
+auto equalize false
+.EE
+.SS i3-like tiling
+.EX
+auto split true
+auto fill void false
+auto find void true
+auto remove true
+auto remove void true
+auto equalize true
+
+mod+v hint split horizontally
+mod+s hint split vertically
+
+mod+Shift+h move left
+mod+Shift+l move right
+mod+Shift+k move up
+mod+Shift+j move down
+.EE
+.SS Start ALL windows as floating besides terminal windows
+.EX
+relate * set floating
+relate xterm-256color set tiling
+relate * focus window
+.EE
+.SS Ignore all windows
+.EX
+relate * nop
+.EE
+.SS Resize mode
+.EX
+group resize (
+    h resize window by -1%   0
+    j resize window by   0  1%
+    k resize window by   0 -1%
+    l resize window by  1%   0
+
+    q ungroup resize
+)
+
+mod+Control+r call resize
+.EE
+.

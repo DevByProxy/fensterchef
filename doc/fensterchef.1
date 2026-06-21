@@ -1,0 +1,324 @@
+.TH FENSTERCHEF 1 "2.0" "Fensterchef" "Fensterchef manual"
+.SH NAME
+fensterchef - tiling done the right way
+.
+.SH SYNOPSIS
+.B fensterchef
+.RI [ OPTION... ]
+.
+.SH OPTION
+.PP
+.BR -h ,
+.BR --help ,
+.B --usage
+.IP
+Show help.
+.PP
+.BR -v ,
+.B --version
+.IP
+Print the version.
+.PP
+.BR -d ,
+.B --verbosity
+.IR all | info | error | nothing
+.BR ( default:
+.IB info )
+.IP
+Set the output logging verbosity.
+.PP
+.B --verbose
+.IP
+Log everything.
+.PP
+.B --log-file
+.I FILE
+.IP
+Log to given file, use - for
+.BR stdout .
+.PP
+.B --config
+.I FILE
+.IP
+Load
+.I FILE
+as configuration file.
+.PP
+.BR -e ,
+.B --command
+.I ARGUMENT...
+.IP
+Run a command within fensterchef.
+.PP
+.B --restore-layout
+.IP
+Restore the last dumped layout from a special file called
+.BR DUMP_LAYOUT .
+.
+.SH DESCRIPTION
+Fensterchef is the original fensterchef product.  You are presented with an X11
+tiling window manager offering support for floating, fullscreen, dock and
+desktop windows with full EWMH support.
+.PP
+For a detailed guide, see
+.IR https://fensterchef.org/wm.html .
+.PP
+For all configuration options, see the the supplied configuration file at
+.IR /usr/share/fensterchef/wm .
+Create a copy of this file at
+.I ~/.config/fensterchef/wm
+and look through the options.
+All configuration options are explained at
+.BR fensterchef (5).
+.
+.SH SETUP
+Setting up fensterchef depends on whether you are using a display manager or
+not.
+
+If this is the case, configure your display manager to set the window manager or
+edit
+.I ~/.xsessionrc
+and add:
+.EX
+exec fensterchef
+.EE
+.PP
+Without a display manager, you can instead edit
+.IR ~/.xinitrc .
+.
+.SH TERMINOLOGY
+.SS Monitor
+A monitor is a sub region of the screen, this would be your output devices.
+.SS Window
+A window is what you would expect: A rectangular region on the screen displaying
+a bar, desktop icons, your browser, a terminal and so on.
+
+The "current window" refers to the window that is currently in focus.
+.SS Frame
+A frame is also a rectangular region on the screen.
+It is the core of the tiling.
+Each monitor has a root frame that can be split into as many frames as you like.
+A frame may be empty or hold onto a window.
+
+The "current frame" refers to the frame that is selected.
+This may also be a group of frames in case you moved to a parent frame.
+.SS Stash
+The stash is a stack that holds onto frames in the background.
+Whenever you remove a frame from the screen, the frame is put into the stash.
+When splitting a frame (and having
+.B auto fill void
+configure set to true) frames are popped from the stash.
+.SS Window list
+The window list can be opened with (default modifier)
+.RB + W
+by default and is
+.I the
+way to show hidden windows.
+There are other ways to show hidden windows through relations, see
+.BR fensterchef (5).
+
+When the window list is open, use the arrow keys or home row keys to navigate
+through the windows, then press
+.B Return
+to show the selected window.
+Use
+.B Escape
+or
+.B q
+to quit the window list.
+.PP
+Specific ascii characters are shown to indicate what the window is up to.
+It can be a one of these:
+.PP
+.B *
+the window is focused
+.PP
+.B +
+the window is a visible tiling window
+.PP
+.B -
+the window is hidden
+.PP
+.B =
+the window is a visible floating window
+.PP
+.B F
+the window is a visible fullscreen window
+.PP
+Only windows that can receive focus are shown in the window list.
+.
+.SH DEFAULT BINDING
+.PP
+Use the the modifier key (default is
+.B Mod4
+which is usually
+.BR Super_L )
+together with any binding.
+.PP
+.B LeftButton
+.IP
+Start moving/resizing the pressed window, this figures out dynamically which
+edge to move.
+.PP
+.IP
+Use this without a modifier to simply focus the window.
+.PP
+.B MiddleButton
+.IP
+Minimize (hide) the pressed window.        
+.PP
+.B RightButton
+.IP
+Start moving the pressed window.
+.PP
+.B Shift
++
+.B R
+.IP
+Reload the configuration file and parts of fensterchef.
+.PP
+.B A
+.IP
+Focus the parent frame.
+.PP
+.B B
+.IP
+Focus the child frame.
+.PP
+.B Shift
++
+.B A
+.IP
+Focus the root frame.
+.PP
+.B Q
+.IP
+Close the current window.
+.PP
+.B - (minus)
+.IP
+Minimize (hide) the current window.
+.PP
+.B N
+.IP
+Put the next window into the current frame.
+.PP
+.B P
+.IP
+Put the previous window into the current frame.
+.PP
+.B R
+.IP
+Remove the current frame.
+.PP
+.B O
+.IP
+Replace the current frame with the last stashed frame.
+.PP
+.B Space
+.IP
+Move the focus from tiling to floating and vise versa.
+.PP
+.B Shift
++
+.B Space
+.IP
+Make a tiling window floating and vise versa.
+.PP
+.B F
+.IP
+Put the current window into fullscreen or put it out of fullscreen.
+.PP
+.B V
+.IP
+Split the current frame horizontally.
+.PP
+.B S
+.IP
+Split the current frame vertically.
+.PP
+.BR K / Up
+.IP
+Move the focus to the frame above the current frame.
+.PP
+.BR H / Left
+.IP
+Move the focus to the frame on the left of the current frame.
+.PP
+.BR L / Right
+.IP
+Move the focus to the frame on the right of the current frame.
+.PP
+.BR J / Down
+.IP
+Move the focus to the frame below the current frame.
+.PP
+.B Shift
++
+.BR K / Up
+.IP
+Swap the current frame with the frame above it.
+.PP
+.B Shift
++
+.BR H / Left
+.IP
+Swap the current frame with the frame on the left of it.
+.PP
+.B Shift
++
+.BR L / Right
+.IP
+Swap the current frame with the frame on the right of it.
+.PP
+.B Shift
++
+.BR J / Down
+.IP
+Swap the current frame with the frame below it.
+.PP
+.B Y
+.IP
+Show and focus the last window that tried to activate itself but failed.
+.PP
+.B M
+.IP
+Show the application launcher.
+.PP
+.B W
+.IP
+Show the interactive window chooser.
+.PP
+.B Return
+.IP
+Open a terminal window.
+.PP
+.B Control
++
+.B Shift
++
+.B U
+.IP
+Update fensterchef by replacing the running process with the new executable.
+This does
+.I not
+fetch a remote update, it only replaces the executable.
+.PP
+.B Control
++
+.B Shift
++
+.B E
+.IP
+Quit fensterchef.
+.
+.SH EXIT STATUS
+If the user quits, the exit status is
+.BR 0 .
+Otherwise it is
+.BR 1 .
+.SH SEE ALSO
+.PP
+.BR fensterchef (5)
+.PP
+.I https://fensterchef.org
